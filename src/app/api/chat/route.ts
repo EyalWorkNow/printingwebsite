@@ -6,7 +6,7 @@ type ToolCall = { id: string; type: "function"; function: { name: string; argume
 
 const catalog = PRODUCTS.map((p) => `- ${p.id}: ${p.name} (${p.desc}); מידות: ${p.sizes.join(", ")}; מינימום ${p.minQty}`).join("\n");
 
-const SYSTEM = `אתה נציג המכירות של "דפוס" — בית דפוס דיגיטלי. ענה תמיד בעברית, קצר וחם.
+const SYSTEM = `אתה נציג המכירות של "דפוס" — בית דפוס דיגיטלי. ענה תמיד בעברית, קצר וחם, בטקסט רגיל בלי Markdown (בלי כוכביות או סולמיות).
 המטרה: לעזור ללקוח לבחור מוצר, לתת הצעת מחיר ולסגור הזמנה עם משלוח עד הבית.
 קטלוג:
 ${catalog}
