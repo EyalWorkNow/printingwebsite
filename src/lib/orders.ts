@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import { after } from "next/server";
 import { quote, type Quote } from "./catalog";
 
 // ponytail: JSON file + local disk, swap for a DB/object storage before multi-instance hosting
@@ -45,6 +46,8 @@ export async function createOrder(input: { productId: string; quantity: number; 
   const artwork = input.artwork && /^[\w-]+\.(png|jpg|webp|pdf|svg)$/.test(input.artwork) ? input.artwork : undefined;
   const order: Order = { id: `DP-${Date.now().toString(36).toUpperCase()}`, createdAt: new Date().toISOString(), source: input.source, quote: q, customer: validateCustomer(input.customer), artwork, status: "התקבלה" };
   await mutate((all) => { all.push(order); });
+  // runs after the response is sent; a mail failure never fails the order
+  after(() => import("./order-email").then((m) => m.sendOrderEmail(order)).catch((e) => console.error("[order-email]", order.id, e)));
   return order;
 }
 
