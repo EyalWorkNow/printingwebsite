@@ -9,7 +9,10 @@ const ORDERS = path.join(DATA, "orders.json");
 export const UPLOADS = path.join(DATA, "uploads");
 
 export type Customer = { name: string; phone: string; email?: string; address: string; city: string; notes?: string };
-export type Order = { id: string; createdAt: string; source: "site" | "chat"; quote: Quote; customer: Customer; artwork?: string; status: "התקבלה" };
+export type Order = { id: string; createdAt: string; source: "site" | "chat"; quote: Quote; customer: Customer; artwork?: string; status: Status };
+
+export const STATUSES = ["התקבלה", "בהכנה", "נשלחה", "בוטלה"] as const;
+export type Status = (typeof STATUSES)[number];
 
 const ALLOWED = new Set(["image/png", "image/jpeg", "image/webp", "application/pdf", "image/svg+xml"]);
 export const MAX_UPLOAD = 20 * 1024 * 1024;
@@ -41,13 +44,28 @@ export async function createOrder(input: { productId: string; quantity: number; 
   const q = quote(input.productId, Number(input.quantity), input.size); // price is always recomputed server-side
   const artwork = input.artwork && /^[\w-]+\.(png|jpg|webp|pdf|svg)$/.test(input.artwork) ? input.artwork : undefined;
   const order: Order = { id: `DP-${Date.now().toString(36).toUpperCase()}`, createdAt: new Date().toISOString(), source: input.source, quote: q, customer: validateCustomer(input.customer), artwork, status: "התקבלה" };
+  await mutate((all) => { all.push(order); });
+  return order;
+}
+
+export const listOrders = async (): Promise<Order[]> => JSON.parse(await readFile(ORDERS, "utf8").catch(() => "[]"));
+
+async function mutate(fn: (all: Order[]) => void) {
   const job = chain.then(async () => {
     await mkdir(DATA, { recursive: true });
-    const all: Order[] = JSON.parse(await readFile(ORDERS, "utf8").catch(() => "[]"));
-    all.push(order);
+    const all = await listOrders();
+    fn(all);
     await writeFile(ORDERS, JSON.stringify(all, null, 2));
   });
   chain = job.catch(() => {});
   await job;
-  return order;
+}
+
+export async function setStatus(id: string, status: string) {
+  if (!STATUSES.includes(status as Status)) throw new Error("סטטוס לא חוקי");
+  await mutate((all) => {
+    const o = all.find((x) => x.id === id);
+    if (!o) throw new Error("הזמנה לא נמצאה");
+    o.status = status as Status;
+  });
 }
