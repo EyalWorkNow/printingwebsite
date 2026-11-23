@@ -14,3 +14,10 @@ assert.throws(() => quote("business-cards", 50), /מינימלית/);
 assert.throws(() => quote("nope", 5), /לא קיים/);
 assert.throws(() => quote("mugs", 1.5), /מינימלית/);
 console.log("catalog ok");
+
+import { printDpi, dpiLevel } from "./catalog.ts";
+assert.equal(printDpi("9×5 ס״מ", 1063, 591), 300); // 9cm@300dpi = 1063px
+assert.equal(printDpi("9×5 ס״מ", 591, 1063), 300); // rotated art
+assert.equal(dpiLevel(printDpi("A2", 1000, 1400)), "low");
+assert.equal(dpiLevel(printDpi("L", 3307, 4134)), "good"); // 28×35cm @300
+console.log("dpi ok");

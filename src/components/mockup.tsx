@@ -30,17 +30,19 @@ const SHAPES: Record<Kind, { body: React.ReactNode; area: [number, number, numbe
   },
 };
 
-export function Mockup({ kind, src }: { kind: Kind; src?: string }) {
+export function Mockup({ kind, src, zoom = 1, fit = false, uid = "" }: { kind: Kind; src?: string; zoom?: number; fit?: boolean; uid?: string }) {
   const { body, area, clip } = SHAPES[kind];
   const [x, y, w, h] = area;
+  const id = `clip-${kind}${uid}`; // unique per instance: several mockups can share a page
+  const [iw, ih] = [w * zoom, h * zoom];
   return (
     <svg viewBox="0 0 400 400" className="h-full w-full" role="img" aria-label="תצוגה מקדימה של המוצר עם הגרפיקה">
       <defs>
-        <clipPath id={`clip-${kind}`}>{clip === "circle" ? <circle cx="200" cy="200" r="135" /> : <rect x={x} y={y} width={w} height={h} rx={kind === "card" ? 10 : 0} />}</clipPath>
+        <clipPath id={id}>{clip === "circle" ? <circle cx="200" cy="200" r="135" /> : <rect x={x} y={y} width={w} height={h} rx={kind === "card" ? 10 : 0} />}</clipPath>
       </defs>
       {body}
       {src ? (
-        <image href={src} x={x} y={y} width={w} height={h} preserveAspectRatio="xMidYMid slice" clipPath={`url(#clip-${kind})`} />
+        <image href={src} x={x + (w - iw) / 2} y={y + (h - ih) / 2} width={iw} height={ih} preserveAspectRatio={fit ? "xMidYMid meet" : "xMidYMid slice"} clipPath={`url(#${id})`} />
       ) : (
         <text x={x + w / 2} y={y + h / 2} textAnchor="middle" dominantBaseline="middle" fill="#a3a3a3" fontSize="16">הגרפיקה שלך כאן</text>
       )}

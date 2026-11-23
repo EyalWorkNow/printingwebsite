@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Upload, Check, Loader2 } from "lucide-react";
-import { PRODUCTS, quote, ils } from "@/lib/catalog";
+import { Upload, Check, Loader2, ZoomIn, AlertTriangle, BadgeCheck } from "lucide-react";
+import { PRODUCTS, quote, ils, printDpi, dpiLevel } from "@/lib/catalog";
 import { Mockup } from "./mockup";
 import { GlowCard } from "./glow-card";
 
@@ -18,6 +18,9 @@ export function Configurator() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [done, setDone] = useState<{ id: string; total: number }>();
+  const [zoom, setZoom] = useState(1);
+  const [fit, setFit] = useState(false);
+  const [px, setPx] = useState<[number, number]>();
 
   // listen for "choose product" clicks from the catalog grid
   useEffect(() => {
@@ -33,15 +36,25 @@ export function Configurator() {
 
   function onFile(f?: File) {
     if (preview) URL.revokeObjectURL(preview);
-    setFile(f);
-    setPreview(f && f.type.startsWith("image/") ? URL.createObjectURL(f) : undefined);
+    setFile(f); setZoom(1); setFit(false); setPx(undefined);
+    const url = f && f.type.startsWith("image/") ? URL.createObjectURL(f) : undefined;
+    setPreview(url);
+    if (url && f?.type !== "image/svg+xml") { // SVG is vector — resolution never limits print
+      const img = new Image();
+      img.onload = () => setPx([img.naturalWidth, img.naturalHeight]);
+      img.src = url;
+    }
   }
+
+  const dpi = px && printDpi(size, px[0], px[1]);
+  const level = dpi && dpiLevel(dpi);
 
   const q = useMemo(() => { try { return quote(pid, qty, size); } catch (e) { return (e as Error).message; } }, [pid, qty, size]);
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const customer = Object.fromEntries(new FormData(e.currentTarget)); // read before any await: currentTarget is nulled after
+    if (preview && (zoom !== 1 || fit)) customer.notes = `${customer.notes ?? ""}\n[מיקום במוקאפ: ${fit ? "התאמה מלאה" : "מילוי"}, זום ${Math.round(zoom * 100)}%]`.trim();
     setErr(""); setBusy(true);
     try {
       let artwork: string | undefined;
@@ -60,8 +73,18 @@ export function Configurator() {
   return (
     <div className="grid gap-4 lg:grid-cols-12">
       <GlowCard className="lg:col-span-5 min-h-[26rem]" inner="flex items-center justify-center bg-neutral-900/40">
-        <div className="aspect-square w-full max-w-md"><Mockup kind={p.mockup} src={preview} /></div>
-        {file && !preview && <p className="absolute bottom-4 text-xs text-neutral-400">קובץ PDF צורף — תצוגה מקדימה זמינה לתמונות בלבד</p>}
+        <div className="flex h-full w-full flex-col items-center justify-center gap-4">
+          <div className="aspect-square w-full max-w-md"><Mockup kind={p.mockup} src={preview} zoom={zoom} fit={fit} /></div>
+          {preview && (
+            <div className="flex w-full max-w-sm items-center gap-3 text-xs text-neutral-400">
+              <ZoomIn className="h-4 w-4 shrink-0" />
+              <input type="range" min={0.5} max={2} step={0.05} value={zoom} onChange={(e) => setZoom(Number(e.target.value))} aria-label="זום על הגרפיקה" className="flex-1 accent-white" />
+              <span className="w-10 tabular-nums">{Math.round(zoom * 100)}%</span>
+              <button type="button" onClick={() => setFit(!fit)} className="rounded-full border px-2.5 py-1 hover:text-white">{fit ? "מילוי" : "התאמה"}</button>
+            </div>
+          )}
+          {file && !preview && <p className="text-xs text-neutral-400">קובץ PDF צורף — תצוגה מקדימה זמינה לתמונות בלבד</p>}
+        </div>
       </GlowCard>
 
       <GlowCard className="lg:col-span-7" inner="space-y-5">
@@ -83,6 +106,12 @@ export function Configurator() {
           <span>{file ? file.name : "העלאת גרפיקה (PNG, JPG, SVG, PDF — עד 20MB)"}</span>
           <input type="file" className="sr-only" accept="image/png,image/jpeg,image/webp,image/svg+xml,application/pdf" onChange={(e) => onFile(e.target.files?.[0])} />
         </label>
+        {level && (
+          <p className={`flex items-center gap-2 text-xs ${level === "low" ? "text-amber-400" : "text-emerald-400"}`} role="status">
+            {level === "low" ? <AlertTriangle className="h-4 w-4" /> : <BadgeCheck className="h-4 w-4" />}
+            {level === "good" ? `איכות מעולה להדפסה (${dpi} DPI)` : level === "ok" ? `איכות סבירה להדפסה (${dpi} DPI) — מומלץ 300` : `רזולוציה נמוכה למידה ${size} (${dpi} DPI) — ההדפסה עלולה לצאת מטושטשת. מומלץ קובץ גדול יותר או PDF/SVG.`}
+          </p>
+        )}
 
         <div className="rounded-xl border p-4 text-sm">
           {typeof q === "string" ? <p className="text-red-400">{q}</p> : (
@@ -107,7 +136,8 @@ export function Configurator() {
             <input name="phone" required placeholder="טלפון נייד" className={input} inputMode="tel" autoComplete="tel" />
             <input name="address" required placeholder="רחוב ומספר" className={input} autoComplete="street-address" />
             <input name="city" required placeholder="עיר" className={input} autoComplete="address-level2" />
-            <input name="email" type="email" placeholder="אימייל (רשות)" className={`${input} sm:col-span-2`} autoComplete="email" />
+            <input name="email" type="email" placeholder="אימייל לאישור הזמנה (רשות)" className={`${input} sm:col-span-2`} autoComplete="email" />
+            <textarea name="notes" rows={2} maxLength={400} placeholder="הערות להזמנה (רשות)" className={`${input} resize-none sm:col-span-2`} />
             {err && <p className="text-sm text-red-400 sm:col-span-2" role="alert">{err}</p>}
             <button disabled={busy || typeof q === "string"} className="flex items-center justify-center gap-2 rounded-lg bg-white px-4 py-3 font-medium text-black disabled:opacity-50 sm:col-span-2">
               {busy && <Loader2 className="h-4 w-4 animate-spin" />} הזמנה עם משלוח עד הבית

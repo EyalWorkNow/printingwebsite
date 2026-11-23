@@ -58,3 +58,18 @@ export function quote(productId: string, quantity: number, size?: string): Quote
 }
 
 export const ils = (n: number) => `₪${n.toLocaleString("he-IL", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+
+// Physical print area (cm) per size — used to warn about low-resolution artwork.
+const PRINT_CM: Record<string, [number, number]> = {
+  "9×5 ס״מ": [9, 5], A5: [14.8, 21], A4: [21, 29.7], A3: [29.7, 42], A2: [42, 59.4], "50×70": [50, 70],
+  "5×5 ס״מ": [5, 5], "10×10 ס״מ": [10, 10], "330 מ״ל": [20, 9],
+};
+const SHIRT_CM: [number, number] = [28, 35];
+
+/** Effective DPI of a w×h px image printed at the product size (orientation-agnostic). */
+export function printDpi(size: string, w: number, h: number): number {
+  const [a, b] = (PRINT_CM[size] ?? SHIRT_CM).toSorted((x, y) => x - y);
+  const [pw, ph] = [w, h].toSorted((x, y) => x - y);
+  return Math.round(Math.min(pw / (a / 2.54), ph / (b / 2.54)));
+}
+export const dpiLevel = (dpi: number) => (dpi >= 250 ? "good" : dpi >= 150 ? "ok" : "low");

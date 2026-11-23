@@ -13,7 +13,14 @@ export function Chat() {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const end = useRef<HTMLDivElement>(null);
-  useEffect(() => end.current?.scrollIntoView({ behavior: "smooth" }), [msgs, busy]);
+  useEffect(() => { end.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs, busy]);
+  // any link to #chat opens the widget
+  useEffect(() => {
+    const on = () => { if (location.hash === "#chat") { setOpen(true); history.replaceState(null, "", location.pathname + location.search); } };
+    on();
+    window.addEventListener("hashchange", on);
+    return () => window.removeEventListener("hashchange", on);
+  }, []);
 
   async function send(content: string) {
     if (!content.trim() || busy) return;
@@ -49,6 +56,13 @@ export function Chat() {
               {msgs.map((m, i) => (
                 <p key={i} className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3 py-2 ${m.role === "user" ? "mr-auto bg-white text-black" : "bg-neutral-800"}`}>{m.content}</p>
               ))}
+              {msgs.length === 1 && (
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {["כמה עולים 500 כרטיסי ביקור?", "אני צריך 20 חולצות עם לוגו", "מה זמן האספקה?"].map((t) => (
+                    <button key={t} onClick={() => send(t)} className="rounded-full border px-3 py-1 text-xs text-neutral-300 hover:border-neutral-500 hover:text-white">{t}</button>
+                  ))}
+                </div>
+              )}
               {busy && <Loader2 className="h-4 w-4 animate-spin text-neutral-400" />}
               <div ref={end} />
             </div>
