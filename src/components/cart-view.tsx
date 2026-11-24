@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Trash2, Minus, Plus, Loader2, Check, Truck, Store, Zap, Phone, FileText } from "lucide-react";
+import { Trash2, Minus, Plus, Check, Truck, Store, Zap, FileText } from "lucide-react";
 import { findProduct, priceLine, totals, withVat, ils, mockupFor, tintFor, liveShipping, addBusinessDays, type Catalog, type Line, type ShippingId } from "@/lib/catalog";
 import { useCatalog } from "./catalog-provider";
+import { PaymentStep } from "./payment-step";
 import { cart, useCart, useToday, type CartItem } from "@/lib/cart";
 import { Mockup } from "./mockup";
 import { GlowCard } from "./glow-card";
@@ -144,8 +145,7 @@ export function Checkout() {
 
   function next(e: React.FormEvent) { e.preventDefault(); setErr(""); setStep(step + 1); }
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
+  async function submit() {
     setErr(""); setBusy(true);
     try {
       const r = await (await fetch("/api/order", { method: "POST", headers: { "Content-Type": "application/json" },
@@ -199,19 +199,11 @@ export function Checkout() {
             </form>
           )}
           {step === 2 && (
-            <form onSubmit={submit} className="space-y-4">
-              <h2 className="text-lg font-semibold">תשלום</h2>
-              <label className="flex items-center gap-4 rounded-xl border border-white bg-white/5 p-4">
-                <input type="radio" checked readOnly className="accent-white" /><Phone className="h-5 w-5 text-neutral-400" />
-                <span className="space-y-0.5"><span className="block font-medium">תשלום טלפוני</span><span className="block text-xs text-neutral-500">נבדוק את הקבצים ונתקשר לחיוב באשראי תוך יום עסקים. זמני הייצור נספרים מרגע התשלום.</span></span>
-              </label>
-              <div className="rounded-xl border p-4 text-sm text-neutral-300">
+            <PaymentStep total={totals(cat, lines, method).total} busy={busy} err={err} canSubmit={lines.length === rows.length} onPhoneOrder={submit}
+              recap={<div className="rounded-xl border p-4 text-sm text-neutral-300">
                 <p>{c.name} · <span dir="ltr">{c.phone}</span>{c.email && ` · ${c.email}`}</p>
                 <p className="text-neutral-400">{cat.shipping[method].label}{method !== "pickup" && ` — ${c.address}, ${c.city}`}</p>
-              </div>
-              {err && <p className="text-sm text-red-400" role="alert">{err}</p>}
-              <button disabled={busy || lines.length !== rows.length} className="flex w-full items-center justify-center gap-2 rounded-lg bg-white py-3 font-medium text-black disabled:opacity-50">{busy && <Loader2 className="h-4 w-4 animate-spin" />} אישור וסיום הזמנה</button>
-            </form>
+              </div>} />
           )}
         </GlowCard>
       </div>
