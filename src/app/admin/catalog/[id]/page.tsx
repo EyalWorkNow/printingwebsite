@@ -12,7 +12,7 @@ export default function EditProduct({ params }: PageProps<"/admin/catalog/[id]">
   return (
     <main className="mx-auto max-w-6xl space-y-8 px-4 py-6">
       <AdminHeader active="catalog" />
-      <Suspense fallback={<p className="text-neutral-500">טוען…</p>}><Body params={params} /></Suspense>
+      <Suspense fallback={<p className="text-muted-foreground">טוען…</p>}><Body params={params} /></Suspense>
     </main>
   );
 }

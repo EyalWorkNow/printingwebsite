@@ -8,7 +8,7 @@ export function ProductCard({ p, from }: { p: Product; from: number }) {
   return (
     <Link href={`/p/${p.id}`} className="group block h-full">
       <GlowCard inner="flex flex-col gap-4 p-4">
-        <div className="relative aspect-square w-full overflow-hidden rounded-xl bg-neutral-900/60">
+        <div className="relative aspect-square w-full overflow-hidden rounded-xl bg-muted/60">
           {p.image ? (
             <Image src={p.image} alt={p.name} fill sizes="(min-width: 1024px) 30vw, (min-width: 640px) 45vw, 90vw" className="object-cover transition duration-500 group-hover:scale-105" />
           ) : (
@@ -17,8 +17,8 @@ export function ProductCard({ p, from }: { p: Product; from: number }) {
         </div>
         <div className="space-y-1.5 px-1">
           <h3 className="text-lg font-semibold">{p.name}</h3>
-          <p className="text-sm text-neutral-400">{p.desc}</p>
-          <p className="text-sm">החל מ־<b>{ils(from)}</b> <span className="text-neutral-500">ליח׳ כולל מע״מ</span></p>
+          <p className="text-sm text-muted-foreground">{p.desc}</p>
+          <p className="text-sm">החל מ־<b>{ils(from)}</b> <span className="text-muted-foreground">ליח׳ כולל מע״מ</span></p>
         </div>
       </GlowCard>
     </Link>

@@ -18,7 +18,7 @@ export async function generateMetadata({ params }: PageProps<"/p/[slug]">) {
 
 // Suspense: params are URL data — keeps client navigations instant (shell renders while the slug resolves)
 export default function ProductPage({ params }: PageProps<"/p/[slug]">) {
-  return <Suspense fallback={<div className="h-96 animate-pulse rounded-3xl border bg-neutral-950" />}><Body params={params} /></Suspense>;
+  return <Suspense fallback={<div className="h-96 animate-pulse rounded-3xl border bg-card" />}><Body params={params} /></Suspense>;
 }
 
 async function Body({ params }: { params: PageProps<"/p/[slug]">["params"] }) {
@@ -30,17 +30,17 @@ async function Body({ params }: { params: PageProps<"/p/[slug]">["params"] }) {
   const more = liveProducts(cat).filter((x) => x.category === p.category && x.id !== p.id).slice(0, 3);
   return (
     <div className="space-y-10">
-      <nav aria-label="פירורי לחם" className="text-sm text-neutral-500">
-        <Link href="/" className="hover:text-white">דף הבית</Link> / <Link href={`/c/${c.id}`} className="hover:text-white">{c.name}</Link> / <span className="text-neutral-300">{p.name}</span>
+      <nav aria-label="פירורי לחם" className="text-sm text-muted-foreground">
+        <Link href="/" className="inline-block py-1.5 hover:text-foreground">דף הבית</Link> / <Link href={`/c/${c.id}`} className="inline-block py-1.5 hover:text-foreground">{c.name}</Link> / <span className="text-foreground/80">{p.name}</span>
       </nav>
       <header className="space-y-2">
         <h1 className="text-3xl font-bold md:text-4xl">{p.name}</h1>
-        <p className="text-neutral-400">{p.desc} · החל מ־{ils(fromPrice(cat, p))} ליח׳ כולל מע״מ · מינימום {p.qty.min.toLocaleString("he-IL")} יח׳</p>
+        <p className="text-muted-foreground">{p.desc} · החל מ־{ils(fromPrice(cat, p))} ליח׳ כולל מע״מ · מינימום {p.qty.min.toLocaleString("he-IL")} יח׳</p>
       </header>
       <ProductWizard productId={p.id} />
       <section className="space-y-3">
         <h2 className="text-xl font-semibold">פרטים על המוצר</h2>
-        <ul className="grid gap-2 text-sm text-neutral-300 sm:grid-cols-2">{p.details.map((d) => <li key={d} className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-neutral-500" />{d}</li>)}</ul>
+        <ul className="grid gap-2 text-sm text-foreground/80 sm:grid-cols-2">{p.details.map((d) => <li key={d} className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />{d}</li>)}</ul>
       </section>
       {more.length > 0 && (
         <section className="space-y-4">

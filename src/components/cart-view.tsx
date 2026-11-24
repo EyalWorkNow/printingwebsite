@@ -10,7 +10,7 @@ import { cart, useCart, useToday, type CartItem } from "@/lib/cart";
 import { Mockup } from "./mockup";
 import { GlowCard } from "./glow-card";
 
-const input = "w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400";
+const input = "w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none focus:border-foreground/50";
 const priced = (cat: Catalog, items: CartItem[]) => items.map((i) => { try { return { i, l: priceLine(cat, i) }; } catch (e) { return { i, err: (e as Error).message }; } });
 type Row = ReturnType<typeof priced>[number];
 
@@ -20,7 +20,7 @@ function Thumb({ i, l }: { i: CartItem; l?: Line }) {
   const sel = l?.options ?? {};
   // eslint-disable-next-line @next/next/no-img-element -- tiny local thumb
   if (!i.thumb && p.image) return <img src={p.image} alt="" className="h-20 w-20 shrink-0 rounded-xl border object-cover" />;
-  return <div className="h-20 w-20 shrink-0 rounded-xl border bg-neutral-900/50"><Mockup kind={mockupFor(p, sel)} tint={tintFor(p, sel)} src={i.thumb} uid={`-t-${i.key}`} /></div>;
+  return <div className="h-20 w-20 shrink-0 rounded-xl border bg-muted/50"><Mockup kind={mockupFor(p, sel)} tint={tintFor(p, sel)} src={i.thumb} uid={`-t-${i.key}`} /></div>;
 }
 
 function Summary({ lines, method, children }: { lines: Line[]; method: ShippingId; children?: React.ReactNode }) {
@@ -30,12 +30,12 @@ function Summary({ lines, method, children }: { lines: Line[]; method: ShippingI
     <GlowCard inner="space-y-4">
       <h2 className="text-lg font-semibold">סיכום הזמנה</h2>
       <dl className="grid grid-cols-2 gap-y-1.5 text-sm">
-        <dt className="text-neutral-400">מוצרים ({lines.length})</dt><dd className="text-left">{ils(Math.round((t.total - withVat(t.shipping)) * 100) / 100)}</dd>
-        <dt className="text-neutral-400">{t.shippingLabel}</dt><dd className="text-left">{t.shipping ? ils(withVat(t.shipping)) : "חינם"}</dd>
+        <dt className="text-muted-foreground">מוצרים ({lines.length})</dt><dd className="text-left">{ils(Math.round((t.total - withVat(t.shipping)) * 100) / 100)}</dd>
+        <dt className="text-muted-foreground">{t.shippingLabel}</dt><dd className="text-left">{t.shipping ? ils(withVat(t.shipping)) : "חינם"}</dd>
         <dt className="border-t pt-2 text-base font-semibold">סה״כ לתשלום</dt><dd className="border-t pt-2 text-left text-2xl font-semibold">{ils(t.total)}</dd>
-        <dt className="col-span-2 text-xs text-neutral-500">כולל מע״מ 18% ({ils(t.vat)})</dt>
+        <dt className="col-span-2 text-xs text-muted-foreground">כולל מע״מ 18% ({ils(t.vat)})</dt>
       </dl>
-      {t.shippingMethod === "home" && t.shipping > 0 && cat.shipping.home.freeFrom > 0 && <p className="text-xs text-neutral-500">עוד {ils(cat.shipping.home.freeFrom - t.subtotal)} לפני מע״מ למשלוח חינם</p>}
+      {t.shippingMethod === "home" && t.shipping > 0 && cat.shipping.home.freeFrom > 0 && <p className="text-xs text-muted-foreground">עוד {ils(cat.shipping.home.freeFrom - t.subtotal)} לפני מע״מ למשלוח חינם</p>}
       {children}
     </GlowCard>
   );
@@ -44,8 +44,8 @@ function Summary({ lines, method, children }: { lines: Line[]; method: ShippingI
 const Empty = () => (
   <div className="space-y-4 py-20 text-center">
     <p className="text-xl font-semibold">העגלה ריקה</p>
-    <p className="text-neutral-400">זה הזמן להפוך רעיון למשהו מודפס.</p>
-    <Link href="/#categories" className="inline-block rounded-lg bg-white px-5 py-2.5 font-medium text-black">לכל המוצרים</Link>
+    <p className="text-muted-foreground">זה הזמן להפוך רעיון למשהו מודפס.</p>
+    <Link href="/#categories" className="inline-block rounded-lg bg-foreground px-5 py-2.5 font-medium text-background">לכל המוצרים</Link>
   </div>
 );
 
@@ -63,12 +63,12 @@ export function CartView() {
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-12">
-      <ul className="space-y-3 lg:col-span-8">
+    <div className="grid gap-6 lg:grid-cols-12 [&>*]:min-w-0">
+      <ul className="min-w-0 space-y-3 lg:col-span-8">
         {rows.map((r) => {
           const p = findProduct(cat, r.i.productId);
           return (
-            <li key={r.i.key} className="flex gap-4 rounded-2xl border bg-neutral-950 p-4">
+            <li key={r.i.key} className="flex gap-4 rounded-2xl border bg-card p-4">
               <Thumb i={r.i} l={r.l} />
               <div className="min-w-0 flex-1 space-y-1.5">
                 <div className="flex items-start justify-between gap-3">
@@ -76,34 +76,34 @@ export function CartView() {
                   {r.l && <span className="font-semibold">{ils(withVat(r.l.subtotal))}</span>}
                 </div>
                 {r.l ? <>
-                  <p className="text-xs text-neutral-400">{r.l.labels.map(([k, v]) => `${k}: ${v}`).join(" · ")}</p>
-                  <p className="flex items-center gap-1.5 text-xs text-neutral-500">
+                  <p className="text-xs text-muted-foreground">{r.l.labels.map(([k, v]) => `${k}: ${v}`).join(" · ")}</p>
+                  <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     ייצור {r.l.productionLabel} ({r.l.productionDays} ימי עסקים) ·
-                    {r.i.artwork ? <span className="flex items-center gap-1 text-emerald-400"><FileText className="h-3.5 w-3.5" />{r.i.fileName ?? "קובץ"}</span> : <span className="text-amber-400">בלי קובץ — אפשר לשלוח אחר כך</span>}
+                    {r.i.artwork ? <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400"><FileText className="h-3.5 w-3.5" />{r.i.fileName ?? "קובץ"}</span> : <span className="text-amber-700 dark:text-amber-400">בלי קובץ — אפשר לשלוח אחר כך</span>}
                   </p>
-                </> : <p className="text-sm text-red-400">{r.err}</p>}
-                <div className="flex items-center gap-3 pt-1">
+                </> : <p className="text-sm text-red-600 dark:text-red-400">{r.err}</p>}
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1">
                   {r.l && p && !p.options.some((o) => o.kind === "split") && (
                     <div className="flex items-center rounded-lg border">
-                      <button type="button" aria-label="הפחתת כמות" onClick={() => setQty(r, r.l!.quantity - p.qty.step)} className="p-1.5 text-neutral-400 hover:text-white"><Minus className="h-3.5 w-3.5" /></button>
+                      <button type="button" aria-label="הפחתת כמות" onClick={() => setQty(r, r.l!.quantity - p.qty.step)} className="p-1.5 text-muted-foreground hover:text-foreground"><Minus className="h-3.5 w-3.5" /></button>
                       <span className="w-16 text-center text-sm tabular-nums">{r.l.quantity.toLocaleString("he-IL")}</span>
-                      <button type="button" aria-label="הוספת כמות" onClick={() => setQty(r, r.l!.quantity + p.qty.step)} className="p-1.5 text-neutral-400 hover:text-white"><Plus className="h-3.5 w-3.5" /></button>
+                      <button type="button" aria-label="הוספת כמות" onClick={() => setQty(r, r.l!.quantity + p.qty.step)} className="p-1.5 text-muted-foreground hover:text-foreground"><Plus className="h-3.5 w-3.5" /></button>
                     </div>
                   )}
-                  {r.l && <span className="text-xs text-neutral-500">{ils(withVat(r.l.unitPrice))} ליח׳</span>}
-                  <button type="button" onClick={() => cart.remove(r.i.key)} className="ms-auto flex items-center gap-1 text-xs text-neutral-500 hover:text-red-400"><Trash2 className="h-3.5 w-3.5" /> הסרה</button>
+                  {r.l && <span className="text-xs text-muted-foreground">{ils(withVat(r.l.unitPrice))} ליח׳</span>}
+                  <button type="button" onClick={() => cart.remove(r.i.key)} className="ms-auto flex items-center gap-1 px-1 py-2 text-xs text-muted-foreground hover:text-red-600 dark:hover:text-red-400"><Trash2 className="h-3.5 w-3.5" /> הסרה</button>
                 </div>
               </div>
             </li>
           );
         })}
-        <p className="text-xs text-neutral-500">לפני ההמשך ודאו שההדמיה תואמת את ההזמנה. נבדוק כל קובץ לפני הייצור ונחזור אליכם אם משהו לא תקין.</p>
+        <p className="text-xs text-muted-foreground">לפני ההמשך ודאו שההדמיה תואמת את ההזמנה. נבדוק כל קובץ לפני הייצור ונחזור אליכם אם משהו לא תקין.</p>
       </ul>
-      <div className="lg:col-span-4">
+      <div className="min-w-0 lg:col-span-4">
         <div className="lg:sticky lg:top-24">
           <Summary lines={lines} method="home">
-            <Link href="/checkout" aria-disabled={lines.length !== rows.length} className={`block rounded-lg bg-white py-3 text-center font-medium text-black ${lines.length !== rows.length ? "pointer-events-none opacity-40" : ""}`}>המשך לקופה</Link>
-            <Link href="/#categories" className="block text-center text-sm text-neutral-400 hover:text-white">המשך בקניות</Link>
+            <Link href="/checkout" aria-disabled={lines.length !== rows.length} className={`block rounded-lg bg-foreground py-3 text-center font-medium text-background ${lines.length !== rows.length ? "pointer-events-none opacity-40" : ""}`}>המשך לקופה</Link>
+            <Link href="/#categories" className="block py-2 text-center text-sm text-muted-foreground hover:text-foreground">המשך בקניות</Link>
           </Summary>
         </div>
       </div>
@@ -130,10 +130,10 @@ export function Checkout() {
 
   if (done) return (
     <GlowCard className="mx-auto max-w-xl" inner="space-y-4 text-center">
-      <Check className="mx-auto h-10 w-10 text-emerald-400" />
+      <Check className="mx-auto h-10 w-10 text-emerald-600 dark:text-emerald-400" />
       <h1 className="text-2xl font-semibold">קיבלנו את ההזמנה!</h1>
-      <p className="text-neutral-300">מספר הזמנה <b className="font-mono">{done.id}</b> · {ils(done.total)}</p>
-      <p className="text-sm text-neutral-400">נבדוק את הקבצים ונתקשר לאישור ולתשלום תוך יום עסקים.{c.email && " אישור נשלח גם למייל."}</p>
+      <p className="text-foreground/80">מספר הזמנה <b className="font-mono">{done.id}</b> · {ils(done.total)}</p>
+      <p className="text-sm text-muted-foreground">נבדוק את הקבצים ונתקשר לאישור ולתשלום תוך יום עסקים.{c.email && " אישור נשלח גם למייל."}</p>
       <Link href="/" className="inline-block rounded-lg border px-5 py-2.5 text-sm">חזרה לדף הבית</Link>
     </GlowCard>
   );
@@ -156,12 +156,12 @@ export function Checkout() {
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-12">
+    <div className="grid gap-6 lg:grid-cols-12 [&>*]:min-w-0">
       <div className="space-y-4 lg:col-span-8">
         <ol className="grid grid-cols-3 gap-2 text-sm" aria-label="שלבי הקופה">
           {STEPS.map((t, i) => (
             <li key={t}><button type="button" disabled={i > step} onClick={() => setStep(i)} aria-current={step === i ? "step" : undefined}
-              className={`w-full rounded-xl border py-2 ${step === i ? "border-white text-white" : i < step ? "text-neutral-300" : "text-neutral-600"}`}>{i + 1}. {t}</button></li>
+              className={`w-full rounded-xl border py-2 ${step === i ? "border-foreground text-foreground" : i < step ? "text-foreground/80" : "text-muted-foreground"}`}>{i + 1}. {t}</button></li>
           ))}
         </ol>
         <GlowCard inner="space-y-5">
@@ -174,7 +174,7 @@ export function Checkout() {
               <input placeholder="שם העסק (לחשבונית, רשות)" value={c.business ?? ""} onChange={set("business")} className={input} autoComplete="organization" />
               <input placeholder="ח.פ / עוסק מורשה (רשות)" value={c.businessId ?? ""} onChange={set("businessId")} className={input} inputMode="numeric" />
               <textarea rows={2} maxLength={400} placeholder="הערות להזמנה (רשות)" value={c.notes ?? ""} onChange={set("notes")} className={`${input} resize-none sm:col-span-2`} />
-              <button className="rounded-lg bg-white py-3 font-medium text-black sm:col-span-2">המשך לבחירת משלוח</button>
+              <button className="rounded-lg bg-foreground py-3 font-medium text-background sm:col-span-2">המשך לבחירת משלוח</button>
             </form>
           )}
           {step === 1 && (
@@ -182,10 +182,10 @@ export function Checkout() {
               <h2 className="text-lg font-semibold">שיטת משלוח</h2>
               <div className="grid gap-3">
                 {liveShipping(cat).map((m) => { const s = cat.shipping[m], I = SHIP_ICON[m], t = totals(cat, lines, m); return (
-                  <label key={m} className={`flex cursor-pointer items-center gap-4 rounded-xl border p-4 ${method === m ? "border-white bg-white/5" : "hover:border-neutral-500"}`}>
-                    <input type="radio" name="ship" checked={method === m} onChange={() => setMethod(m)} className="accent-white" />
-                    <I className="h-5 w-5 text-neutral-400" />
-                    <span className="flex-1 space-y-0.5"><span className="block font-medium">{s.label}</span><span className="block text-xs text-neutral-500">{s.desc}{today && ` · ${m === "pickup" ? "מוכן לאיסוף" : "יגיע"} עד ${eta(m)}`}</span></span>
+                  <label key={m} className={`flex cursor-pointer items-center gap-4 rounded-xl border p-4 ${method === m ? "border-foreground bg-foreground/5" : "hover:border-foreground/40"}`}>
+                    <input type="radio" name="ship" checked={method === m} onChange={() => setMethod(m)} className="accent-foreground" />
+                    <I className="h-5 w-5 text-muted-foreground" />
+                    <span className="flex-1 space-y-0.5"><span className="block font-medium">{s.label}</span><span className="block text-xs text-muted-foreground">{s.desc}{today && ` · ${m === "pickup" ? "מוכן לאיסוף" : "יגיע"} עד ${eta(m)}`}</span></span>
                     <span className="text-sm">{t.shipping ? ils(withVat(t.shipping)) : "חינם"}</span>
                   </label>); })}
               </div>
@@ -195,14 +195,14 @@ export function Checkout() {
                   <input required minLength={2} placeholder="עיר" value={c.city ?? ""} onChange={set("city")} className={input} autoComplete="address-level2" />
                 </div>
               )}
-              <button className="w-full rounded-lg bg-white py-3 font-medium text-black">המשך לתשלום</button>
+              <button className="w-full rounded-lg bg-foreground py-3 font-medium text-background">המשך לתשלום</button>
             </form>
           )}
           {step === 2 && (
             <PaymentStep total={totals(cat, lines, method).total} busy={busy} err={err} canSubmit={lines.length === rows.length} onPhoneOrder={submit}
-              recap={<div className="rounded-xl border p-4 text-sm text-neutral-300">
+              recap={<div className="rounded-xl border p-4 text-sm text-foreground/80">
                 <p>{c.name} · <span dir="ltr">{c.phone}</span>{c.email && ` · ${c.email}`}</p>
-                <p className="text-neutral-400">{cat.shipping[method].label}{method !== "pickup" && ` — ${c.address}, ${c.city}`}</p>
+                <p className="text-muted-foreground">{cat.shipping[method].label}{method !== "pickup" && ` — ${c.address}, ${c.city}`}</p>
               </div>} />
           )}
         </GlowCard>

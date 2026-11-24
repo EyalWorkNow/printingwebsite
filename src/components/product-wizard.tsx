@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Upload, Check, Loader2, ZoomIn, AlertTriangle, BadgeCheck, ChevronLeft, ChevronRight, ShoppingCart, FileText, Clock } from "lucide-react";
@@ -14,8 +14,8 @@ import { Mockup } from "./mockup";
 import { GlowCard } from "./glow-card";
 
 const STEPS = ["מאפיינים", "כמות", "זמן ייצור", "גרפיקה"];
-const chip = (on: boolean) => `rounded-xl border px-3 py-2 text-sm text-right transition ${on ? "border-white bg-white/5 text-white" : "text-neutral-400 hover:border-neutral-500 hover:text-neutral-200"}`;
-const input = "w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400";
+const chip = (on: boolean) => `rounded-xl border px-3 py-2 text-sm text-right transition ${on ? "border-foreground bg-foreground/5 text-foreground" : "text-muted-foreground hover:border-foreground/40 hover:text-foreground"}`;
+const input = "w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none focus:border-foreground/50";
 const fmtDate = (d: Date) => d.toLocaleDateString("he-IL", { weekday: "short", day: "numeric", month: "numeric" });
 
 export function ProductWizard({ productId }: { productId: string }) {
@@ -34,6 +34,8 @@ export function ProductWizard({ productId }: { productId: string }) {
   const [fit, setFit] = useState(false);
   const [added, setAdded] = useState(false);
   const [view, setView] = useState<"photo" | "mock">(p.image ? "photo" : "mock");
+  // mobile: the price bar is pinned to the bottom edge — lift the floating chat button above it
+  useEffect(() => { const s = document.documentElement.style; s.setProperty("--fab-offset", "5.5rem"); return () => { s.removeProperty("--fab-offset"); }; }, []);
 
   const sel = useMemo(() => normalize(p, picked), [p, picked]);
   const vis = visibleValues(p, sel);
@@ -83,14 +85,14 @@ export function ProductWizard({ productId }: { productId: string }) {
   const eta = (days: number) => today && fmtDate(addBusinessDays(today, days));
 
   return (
-    <div className="grid items-start gap-4 lg:grid-cols-12">
+    <div className="grid items-start gap-4 max-md:pb-24 lg:grid-cols-12 [&>*]:min-w-0">
       {/* mockup */}
       <div className="lg:col-span-5">
-        <GlowCard className="h-auto lg:sticky lg:top-24" inner="flex flex-col items-center justify-center gap-4 bg-neutral-900/40 p-4">
+        <GlowCard className="h-auto lg:sticky lg:top-24" inner="flex flex-col items-center justify-center gap-4 bg-muted/40 p-4">
           {p.image && (
             <div className="flex gap-1 self-stretch rounded-xl border p-1 text-xs" role="tablist" aria-label="תצוגה">
               {(["photo", "mock"] as const).map((v) => (
-                <button key={v} type="button" role="tab" aria-selected={view === v} onClick={() => setView(v)} className={`flex-1 rounded-lg py-1.5 ${view === v ? "bg-white/10 text-white" : "text-neutral-400 hover:text-white"}`}>{v === "photo" ? "תמונת מוצר" : "הדמיה עם הקובץ שלך"}</button>
+                <button key={v} type="button" role="tab" aria-selected={view === v} onClick={() => setView(v)} className={`flex-1 rounded-lg py-1.5 ${view === v ? "bg-foreground/10 text-foreground" : "text-muted-foreground hover:text-foreground"}`}>{v === "photo" ? "תמונת מוצר" : "הדמיה עם הקובץ שלך"}</button>
               ))}
             </div>
           )}
@@ -100,15 +102,15 @@ export function ProductWizard({ productId }: { productId: string }) {
             <div className="aspect-square w-full max-w-md"><Mockup kind={mockupFor(p, sel)} tint={tintFor(p, sel)} src={art?.preview} zoom={zoom} fit={fit} /></div>
           )}
           {view === "mock" && art?.preview && (
-            <div className="flex w-full max-w-sm items-center gap-3 text-xs text-neutral-400">
+            <div className="flex w-full max-w-sm items-center gap-3 text-xs text-muted-foreground">
               <ZoomIn className="h-4 w-4 shrink-0" />
-              <input type="range" min={0.5} max={2} step={0.05} value={zoom} onChange={(e) => setZoom(Number(e.target.value))} aria-label="זום על הגרפיקה" className="flex-1 accent-white" />
+              <input type="range" min={0.5} max={2} step={0.05} value={zoom} onChange={(e) => setZoom(Number(e.target.value))} aria-label="זום על הגרפיקה" className="h-6 flex-1 accent-foreground" />
               <span className="w-10 tabular-nums">{Math.round(zoom * 100)}%</span>
-              <button type="button" onClick={() => setFit(!fit)} className="rounded-full border px-2.5 py-1 hover:text-white">{fit ? "מילוי" : "התאמה"}</button>
+              <button type="button" onClick={() => setFit(!fit)} className="rounded-full border px-2.5 py-1 hover:text-foreground">{fit ? "מילוי" : "התאמה"}</button>
             </div>
           )}
-          {art && !art.preview && <p className="flex items-center gap-2 text-xs text-neutral-400"><FileText className="h-4 w-4" /> {art.name} — תצוגה מקדימה זמינה לתמונות בלבד</p>}
-          <p className="text-center text-xs text-neutral-500">{view === "photo" ? "תמונת דוגמה — הלוגו שלכם יודפס באותו מיקום." : "הדמיה להמחשה. ייתכנו הבדלי גוון קלים בין המסך להדפסה."}</p>
+          {art && !art.preview && <p className="flex items-center gap-2 text-xs text-muted-foreground"><FileText className="h-4 w-4" /> {art.name} — תצוגה מקדימה זמינה לתמונות בלבד</p>}
+          <p className="text-center text-xs text-muted-foreground">{view === "photo" ? "תמונת דוגמה — הלוגו שלכם יודפס באותו מיקום." : "הדמיה להמחשה. ייתכנו הבדלי גוון קלים בין המסך להדפסה."}</p>
         </GlowCard>
       </div>
 
@@ -118,8 +120,8 @@ export function ProductWizard({ productId }: { productId: string }) {
           {STEPS.map((t, i) => (
             <li key={t}>
               <button type="button" onClick={() => setStep(i)} aria-current={step === i ? "step" : undefined}
-                className={`flex w-full flex-col items-center gap-1.5 rounded-xl border px-1 py-2 ${step === i ? "border-white text-white" : i < step ? "text-neutral-300" : "text-neutral-500"}`}>
-                <span className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] ${i < step ? "bg-white text-black" : "border"}`}>{i < step ? <Check className="h-3.5 w-3.5" /> : i + 1}</span>{t}
+                className={`flex w-full flex-col items-center gap-1.5 rounded-xl border px-1 py-2 ${step === i ? "border-foreground text-foreground" : i < step ? "text-foreground/80" : "text-muted-foreground"}`}>
+                <span className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] ${i < step ? "bg-foreground text-background" : "border"}`}>{i < step ? <Check className="h-3.5 w-3.5" /> : i + 1}</span>{t}
               </button>
             </li>
           ))}
@@ -131,17 +133,17 @@ export function ProductWizard({ productId }: { productId: string }) {
               <h2 className="text-lg font-semibold">בחירת מאפיינים</h2>
               {p.options.filter((o) => o.kind !== "split" && vis[o.id].length).map((o) => (
                 <fieldset key={o.id} className="space-y-2">
-                  <legend className="mb-2 text-sm text-neutral-400">{o.title}{o.kind === "color" && <span className="text-white"> · {o.values.find((v) => v.id === sel[o.id])?.title}</span>}</legend>
+                  <legend className="mb-2 text-sm text-muted-foreground">{o.title}{o.kind === "color" && <span className="text-foreground"> · {o.values.find((v) => v.id === sel[o.id])?.title}</span>}</legend>
                   <div className="flex flex-wrap gap-2">
                     {vis[o.id].map((v) => {
                       const on = sel[o.id] === v.id;
                       const delta = withVat(tierAt(v.tiers, ok ? line.quantity : qty));
                       return o.kind === "color" ? (
                         <button key={v.id} type="button" onClick={() => { setPicked({ ...picked, [o.id]: v.id }); if (o.id !== "inside") setView("mock"); }} aria-label={v.title} aria-pressed={on} title={v.title}
-                          className={`h-9 w-9 rounded-full border-2 ${on ? "border-white ring-2 ring-white/30" : "border-neutral-700"}`} style={{ background: v.color }} />
+                          className={`h-9 w-9 rounded-full border-2 ${on ? "border-foreground ring-2 ring-foreground/30" : "border-foreground/20"}`} style={{ background: v.color }} />
                       ) : (
                         <button key={v.id} type="button" onClick={() => setPicked({ ...picked, [o.id]: v.id })} aria-pressed={on} className={chip(on)}>
-                          {v.title}{delta !== 0 && <span className="block text-xs text-neutral-500">{delta > 0 ? "+" : "−"}{ils(Math.abs(delta))} ליח׳</span>}
+                          {v.title}{delta !== 0 && <span className="block text-xs text-muted-foreground">{delta > 0 ? "+" : "−"}{ils(Math.abs(delta))} ליח׳</span>}
                         </button>
                       );
                     })}
@@ -156,29 +158,29 @@ export function ProductWizard({ productId }: { productId: string }) {
               <h2 className="text-lg font-semibold">בחירת כמות</h2>
               {splitOpt ? (
                 <>
-                  <p className="text-sm text-neutral-400">חלקו את הכמות בין המידות. המחיר נקבע לפי הכמות הכוללת.</p>
+                  <p className="text-sm text-muted-foreground">חלקו את הכמות בין המידות. המחיר נקבע לפי הכמות הכוללת.</p>
                   <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
                     {splitOpt.values.filter((v) => v.active !== false).map((v) => (
-                      <label key={v.id} className="space-y-1 text-center text-sm"><span className="text-neutral-400">{v.title}</span>
+                      <label key={v.id} className="space-y-1 text-center text-sm"><span className="text-muted-foreground">{v.title}</span>
                         <input type="number" min={0} inputMode="numeric" value={split[v.id] ?? 0} onChange={(e) => setSplit({ ...split, [v.id]: Math.max(0, Math.floor(Number(e.target.value) || 0)) })} className={`${input} text-center`} /></label>
                     ))}
                   </div>
-                  <div className="flex flex-wrap gap-2 text-xs text-neutral-500">מדרגות מחיר: {p.qty.presets.map((n) => { const l = quote({ split: { [splitOpt.values.find((v) => v.active !== false)?.id ?? ""]: n } }); return l && <span key={n} className="rounded-full border px-2 py-0.5">{n}+ · {ils(withVat(l.unitPrice))}</span>; })}</div>
+                  <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">מדרגות מחיר: {p.qty.presets.map((n) => { const l = quote({ split: { [splitOpt.values.find((v) => v.active !== false)?.id ?? ""]: n } }); return l && <span key={n} className="rounded-full border px-2 py-0.5">{n}+ · {ils(withVat(l.unitPrice))}</span>; })}</div>
                 </>
               ) : (
                 <>
                   <table className="w-full text-sm">
-                    <thead className="text-xs text-neutral-500"><tr><th className="pb-2 text-right font-normal">כמות</th><th className="pb-2 text-right font-normal">ליחידה</th><th className="pb-2 text-left font-normal">סה״כ כולל מע״מ</th></tr></thead>
+                    <thead className="text-xs text-muted-foreground"><tr><th className="pb-2 text-right font-normal">כמות</th><th className="pb-2 text-right font-normal">ליחידה</th><th className="pb-2 text-left font-normal">סה״כ כולל מע״מ</th></tr></thead>
                     <tbody>
                       {p.qty.presets.map((n) => { const l = quote({ quantity: n }); const on = qty === n; return l && (
-                        <tr key={n} onClick={() => setQty(n)} className={`cursor-pointer border-t ${on ? "bg-white/5 text-white" : "text-neutral-300 hover:bg-white/[.03]"}`}>
-                          <td className="py-2.5 pr-2"><label className="flex cursor-pointer items-center gap-2"><input type="radio" name="qty" checked={on} onChange={() => setQty(n)} className="accent-white" />{n.toLocaleString("he-IL")}</label></td>
-                          <td className="py-2.5 text-neutral-400">{ils(withVat(l.unitPrice))}</td>
+                        <tr key={n} onClick={() => setQty(n)} className={`cursor-pointer border-t ${on ? "bg-foreground/5 text-foreground" : "text-foreground/80 hover:bg-foreground/[.03]"}`}>
+                          <td className="py-2.5 pr-2"><label className="flex cursor-pointer items-center gap-2"><input type="radio" name="qty" checked={on} onChange={() => setQty(n)} className="accent-foreground" />{n.toLocaleString("he-IL")}</label></td>
+                          <td className="py-2.5 text-muted-foreground">{ils(withVat(l.unitPrice))}</td>
                           <td className="py-2.5 text-left font-medium">{ils(withVat(l.subtotal))}</td>
                         </tr>); })}
                     </tbody>
                   </table>
-                  <label className="flex items-center gap-3 text-sm text-neutral-400">כמות אחרת
+                  <label className="flex items-center gap-3 text-sm text-muted-foreground">כמות אחרת
                     <input type="number" min={p.qty.min} max={p.qty.max} step={p.qty.step} value={qty} onChange={(e) => setQty(Math.floor(Number(e.target.value) || 0))} className={`${input} w-32`} />
                     <span className="text-xs">({p.qty.min.toLocaleString("he-IL")}–{p.qty.max.toLocaleString("he-IL")}{p.qty.step > 1 && `, בכפולות של ${p.qty.step}`})</span>
                   </label>
@@ -195,34 +197,34 @@ export function ProductWizard({ productId }: { productId: string }) {
                   <button key={id} type="button" onClick={() => setProduction(id)} aria-pressed={on} className={`${chip(on)} flex items-center justify-between gap-3 p-4`}>
                     <span className="space-y-1">
                       <span className="flex items-center gap-2 font-medium"><Clock className="h-4 w-4" /> {pr.label} · {pr.days} ימי עסקים</span>
-                      {today && <span className="block text-xs text-neutral-500">מוכן עד {eta(pr.days)} · בשליח עד הבית ~{eta(pr.days + cat.shipping.home.days)}</span>}
+                      {today && <span className="block text-xs text-muted-foreground">מוכן עד {eta(pr.days)} · בשליח עד הבית ~{eta(pr.days + cat.shipping.home.days)}</span>}
                     </span>
-                    {l && <span className="text-left text-sm">{ils(withVat(l.subtotal))}{pr.pct !== 0 && <span className="block text-xs text-neutral-500">{pr.pct > 0 ? "+" : ""}{pr.pct * 100}%</span>}</span>}
+                    {l && <span className="text-left text-sm">{ils(withVat(l.subtotal))}{pr.pct !== 0 && <span className="block text-xs text-muted-foreground">{pr.pct > 0 ? "+" : ""}{pr.pct * 100}%</span>}</span>}
                   </button>); })}
               </div>
-              <p className="text-xs text-neutral-500">ימי עסקים: א׳–ה׳, לא כולל חגים. זמן הייצור נספר מאישור הגרפיקה.</p>
+              <p className="text-xs text-muted-foreground">ימי עסקים: א׳–ה׳, לא כולל חגים. זמן הייצור נספר מאישור הגרפיקה.</p>
             </div>
           )}
 
           {step === 3 && (
             <div className="space-y-4">
               <h2 className="text-lg font-semibold">גרפיקה</h2>
-              <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-dashed p-5 text-sm text-neutral-300 hover:border-neutral-500">
-                {art?.busy ? <Loader2 className="h-5 w-5 animate-spin" /> : art?.id ? <Check className="h-5 w-5 text-emerald-400" /> : <Upload className="h-5 w-5" />}
+              <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-dashed p-5 text-sm text-foreground/80 hover:border-foreground/40">
+                {art?.busy ? <Loader2 className="h-5 w-5 animate-spin" /> : art?.id ? <Check className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /> : <Upload className="h-5 w-5" />}
                 <span>{art ? `${art.name}${art.busy ? " — מעלה…" : art.id ? " — הועלה" : ""}` : "העלאת קובץ מוכן — PDF, PNG, JPG, SVG עד 25MB"}</span>
                 <input type="file" className="sr-only" accept="application/pdf,image/png,image/jpeg,image/webp,image/svg+xml" onChange={(e) => onFile(e.target.files?.[0])} />
               </label>
-              {art?.error && <p className="text-sm text-red-400" role="alert">{art.error}</p>}
+              {art?.error && <p className="text-sm text-red-600 dark:text-red-400" role="alert">{art.error}</p>}
               {level && (
-                <p className={`flex items-center gap-2 text-xs ${level === "low" ? "text-amber-400" : "text-emerald-400"}`} role="status">
+                <p className={`flex items-center gap-2 text-xs ${level === "low" ? "text-amber-700 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`} role="status">
                   {level === "low" ? <AlertTriangle className="h-4 w-4" /> : <BadgeCheck className="h-4 w-4" />}
                   {level === "good" ? `איכות מעולה להדפסה (${dpi} DPI)` : level === "ok" ? `איכות סבירה (${dpi} DPI) — מומלץ 300` : `רזולוציה נמוכה למידה הזו (${dpi} DPI) — ההדפסה עלולה לצאת מטושטשת. מומלץ PDF וקטורי או תמונה גדולה יותר.`}
                 </p>
               )}
-              {!art && <p className="text-sm text-neutral-400">אין קובץ מוכן? אפשר להוסיף לעגלה עכשיו ולשלוח את הגרפיקה אחר כך בצ׳אט או במייל — נחכה לקובץ לפני שנתחיל לייצר.</p>}
+              {!art && <p className="text-sm text-muted-foreground">אין קובץ מוכן? אפשר להוסיף לעגלה עכשיו ולשלוח את הגרפיקה אחר כך בצ׳אט או במייל — נחכה לקובץ לפני שנתחיל לייצר.</p>}
               <details className="rounded-xl border p-4 text-sm">
                 <summary className="cursor-pointer font-medium">הנחיות להכנת קובץ</summary>
-                <ul className="mt-3 list-disc space-y-1.5 pr-5 text-neutral-400">
+                <ul className="mt-3 list-disc space-y-1.5 pr-5 text-muted-foreground">
                   {cm && <li>גודל ההדפסה: {cm[0]}×{cm[1]} ס״מ. הוסיפו 3 מ״מ רקע מכל צד (bleed).</li>}
                   <li>מומלץ PDF וקטורי. תמונות ב-300 DPI לפחות בגודל ההדפסה.</li>
                   <li>טקסט ולוגו — לפחות 4 מ״מ מקו החיתוך (אזור בטוח). חיתוך עשוי לסטות ב-1 מ״מ.</li>
@@ -234,27 +236,27 @@ export function ProductWizard({ productId }: { productId: string }) {
           )}
 
           <div className="flex items-center justify-between border-t pt-4">
-            <button type="button" onClick={() => setStep(step - 1)} disabled={step === 0} className="flex items-center gap-1 text-sm text-neutral-400 hover:text-white disabled:invisible"><ChevronRight className="h-4 w-4" /> חזרה</button>
-            {step < STEPS.length - 1 && <button type="button" onClick={next} disabled={step === 1 && !ok} className="flex items-center gap-1 rounded-lg border px-4 py-2 text-sm hover:border-neutral-400 disabled:opacity-40">המשך <ChevronLeft className="h-4 w-4" /></button>}
+            <button type="button" onClick={() => setStep(step - 1)} disabled={step === 0} className="flex items-center gap-1 py-2 text-sm text-muted-foreground hover:text-foreground disabled:invisible"><ChevronRight className="h-4 w-4" /> חזרה</button>
+            {step < STEPS.length - 1 && <button type="button" onClick={next} disabled={step === 1 && !ok} className="flex items-center gap-1 rounded-lg border px-4 py-2 text-sm hover:border-foreground/40 disabled:opacity-40">המשך <ChevronLeft className="h-4 w-4" /></button>}
           </div>
         </GlowCard>
 
         {/* price bar */}
-        <div className="sticky bottom-3 z-10 rounded-2xl border bg-neutral-950/95 p-4 backdrop-blur">
+        <div className="z-30 border bg-card/95 p-4 backdrop-blur max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:border-x-0 max-md:border-b-0 max-md:pb-[max(1rem,env(safe-area-inset-bottom))] md:sticky md:bottom-3 md:rounded-2xl">
           {added ? (
             <div className="flex flex-wrap items-center gap-3 text-sm" role="status">
-              <Check className="h-5 w-5 text-emerald-400" /> נוסף לעגלה!
-              <Link href="/cart" className="ms-auto rounded-lg bg-white px-4 py-2 font-medium text-black">לעגלה ולתשלום</Link>
+              <Check className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /> נוסף לעגלה!
+              <Link href="/cart" className="ms-auto rounded-lg bg-foreground px-4 py-2 font-medium text-background">לעגלה ולתשלום</Link>
               <button type="button" onClick={() => { setAdded(false); setArt(undefined); setStep(0); }} className="rounded-lg border px-4 py-2">עוד אחד</button>
             </div>
           ) : (
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <div className="flex items-center gap-4">
               {ok ? (
-                <p className="text-sm text-neutral-400"><span className="text-2xl font-semibold text-white">{ils(withVat(line.subtotal))}</span> · {line.quantity.toLocaleString("he-IL")} יח׳ · {ils(withVat(line.unitPrice))} ליח׳ · כולל מע״מ</p>
-              ) : <p className="text-sm text-red-400" role="alert">{line}</p>}
+                <p className="min-w-0 text-sm text-muted-foreground"><span className="block text-2xl leading-tight font-semibold text-foreground">{ils(withVat(line.subtotal))}</span>{line.quantity.toLocaleString("he-IL")} יח׳ · {ils(withVat(line.unitPrice))} ליח׳ · כולל מע״מ</p>
+              ) : <p className="min-w-0 text-sm text-red-600 dark:text-red-400" role="alert">{line}</p>}
               {step < STEPS.length - 1
-                ? <button type="button" onClick={next} disabled={!ok} className="ms-auto rounded-lg bg-white px-5 py-2.5 font-medium text-black disabled:opacity-40">המשך</button>
-                : <button type="button" onClick={addToCart} disabled={!ok || art?.busy} className="ms-auto flex items-center gap-2 rounded-lg bg-white px-5 py-2.5 font-medium text-black disabled:opacity-40"><ShoppingCart className="h-4 w-4" /> הוספה לעגלה</button>}
+                ? <button type="button" onClick={next} disabled={!ok} className="ms-auto shrink-0 rounded-lg bg-foreground px-5 py-2.5 font-medium text-background disabled:opacity-40">המשך</button>
+                : <button type="button" onClick={addToCart} disabled={!ok || art?.busy} className="ms-auto flex shrink-0 items-center gap-2 rounded-lg bg-foreground px-5 py-2.5 font-medium text-background disabled:opacity-40"><ShoppingCart className="h-4 w-4" /> הוספה לעגלה</button>}
             </div>
           )}
         </div>

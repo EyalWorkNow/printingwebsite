@@ -17,13 +17,13 @@ export default function About() {
       <section className="grid items-center gap-8 lg:grid-cols-2">
         <div className="space-y-4">
           <h1 className="text-3xl font-bold md:text-5xl">מדפיסים את המותג שלכם — בפשטות.</h1>
-          <p className="text-neutral-400 md:text-lg">דפוס הוא בית דפוס דיגיטלי לעסקים, ארגונים ואנשים פרטיים. מכרטיס ביקור אחד ועד ערכת מיתוג שלמה לאירוע — אנחנו מאמינים שהזמנת דפוס צריכה להיות פשוטה כמו קנייה אונליין: רואים מחיר, רואים הדמיה, מזמינים.</p>
-          <Link href="/products" className="inline-block rounded-lg bg-white px-6 py-3 font-medium text-black">למוצרים</Link>
+          <p className="text-muted-foreground md:text-lg">דפוס הוא בית דפוס דיגיטלי לעסקים, ארגונים ואנשים פרטיים. מכרטיס ביקור אחד ועד ערכת מיתוג שלמה לאירוע — אנחנו מאמינים שהזמנת דפוס צריכה להיות פשוטה כמו קנייה אונליין: רואים מחיר, רואים הדמיה, מזמינים.</p>
+          <Link href="/products" className="inline-block rounded-lg bg-foreground px-6 py-3 font-medium text-background">למוצרים</Link>
         </div>
         <GlowCard className="h-auto" inner="relative aspect-square p-0"><Image src="/img/set-flatlay.webp" alt="מוצרים ממותגים: חולצה, כובע, מחברת, עט ותיק" fill sizes="(min-width: 1024px) 45vw, 90vw" className="object-cover" /></GlowCard>
       </section>
       <section className="grid gap-4 sm:grid-cols-2">
-        {POINTS.map(([t, d]) => <GlowCard key={t} inner="space-y-2"><h2 className="text-lg font-semibold">{t}</h2><p className="text-sm text-neutral-400">{d}</p></GlowCard>)}
+        {POINTS.map(([t, d]) => <GlowCard key={t} inner="space-y-2"><h2 className="text-lg font-semibold">{t}</h2><p className="text-sm text-muted-foreground">{d}</p></GlowCard>)}
       </section>
     </div>
   );
