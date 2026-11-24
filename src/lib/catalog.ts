@@ -5,12 +5,12 @@
 //   order = Σ lines + shipping, + VAT
 export type Mockup = "card" | "card-v" | "card-sq" | "flyer" | "poster" | "sticker" | "mug" | "shirt" | "bag" | "bottle";
 export type Tier = [from: number, unit: number]; // ₪ per unit before VAT, from `from` units up
-export type Value = { id: string; title: string; tiers?: Tier[]; color?: string; cm?: [number, number]; mockup?: Mockup };
+export type Value = { id: string; title: string; tiers?: Tier[]; color?: string; cm?: [number, number]; mockup?: Mockup; active?: boolean }; // active:false = hidden from customers
 // first value is the default. kind "split" = quantity is split across values (e.g. shirt sizes S×5, M×3)
 export type Option = { id: string; title: string; kind?: "color" | "split"; values: Value[] };
 export type Rule = { if: [option: string, values: string[]]; hide: [option: string, values: string[]] };
 export type Product = {
-  id: string; name: string; desc: string; category: string; mockup: Mockup;
+  id: string; name: string; desc: string; category: string; mockup: Mockup; active?: boolean;
   base: Tier[]; setup?: number; options: Option[]; rules?: Rule[];
   qty: { min: number; max: number; step: number; presets: number[] };
   production: ProductionId[]; printCm?: [number, number]; details: string[];
@@ -18,22 +18,27 @@ export type Product = {
 
 export const VAT = 0.18;
 
-export const PRODUCTION = {
+export const PRODUCTION_IDS = ["express", "fast", "standard", "saver"] as const;
+export type ProductionId = (typeof PRODUCTION_IDS)[number];
+export type Production = { label: string; days: number; pct: number };
+const PRODUCTION: Record<ProductionId, Production> = {
   express: { label: "אקספרס", days: 1, pct: 0.5 },
   fast: { label: "מהיר", days: 3, pct: 0.2 },
   standard: { label: "רגיל", days: 5, pct: 0 },
   saver: { label: "חסכוני", days: 8, pct: -0.1 },
-} as const;
-export type ProductionId = keyof typeof PRODUCTION;
+};
 
-export const SHIPPING = {
+export const SHIPPING_IDS = ["pickup", "home", "express"] as const;
+export type ShippingId = (typeof SHIPPING_IDS)[number];
+export type Shipping = { label: string; desc: string; price: number; days: number; freeFrom: number; active?: boolean };
+const SHIPPING: Record<ShippingId, Shipping> = {
   pickup: { label: "איסוף עצמי", desc: "מהסטודיו, בתיאום טלפוני", price: 0, days: 0, freeFrom: 0 },
   home: { label: "שליח עד הבית", desc: "לכל הארץ · חינם מעל ₪500 לפני מע״מ", price: 39, days: 2, freeFrom: 500 },
   express: { label: "שליח אקספרס", desc: "יום עסקים אחד אחרי הייצור", price: 79, days: 1, freeFrom: 0 },
-} as const;
-export type ShippingId = keyof typeof SHIPPING;
+};
 
-export const CATEGORIES = [
+export type Category = { id: string; name: string; desc: string };
+const CATEGORIES: Category[] = [
   { id: "print", name: "מוצרי דפוס", desc: "כרטיסי ביקור, פליירים, ברושורים, נייר לוגו ומחברות" },
   { id: "signs", name: "מדבקות ושילוט", desc: "מדבקות בחיתוך, פוסטרים, רול-אפ והדפסה על קנבס" },
   { id: "apparel", name: "ביגוד ממותג", desc: "חולצות, קפוצ׳ונים וחולצות ילדים עם הלוגו שלכם" },
@@ -57,7 +62,7 @@ const SHIRT_PRINT: Option = { id: "print", title: "מיקום הדפסה", value
 const sizes = (...s: string[]): Option => ({ id: "size", title: "מידה", kind: "split", values: s.map((x) => ({ id: x, title: x })) });
 const PRINT_DAYS: ProductionId[] = ["express", "fast", "standard", "saver"];
 
-export const PRODUCTS: Product[] = [
+const PRODUCTS: Product[] = [
   // ── print
   { id: "business-card", name: "כרטיס ביקור", desc: "כרומו מט 300 גרם, הדפסה צבעונית חדה", category: "print", mockup: "card",
     base: [[100, 0.95], [300, 0.42], [500, 0.27], [1000, 0.16], [2000, 0.12], [5000, 0.08]],
@@ -158,14 +163,21 @@ export const PRODUCTS: Product[] = [
     details: ["38×42 ס״מ", "מתאים לכנסים, חנויות ואירועים"] },
 ];
 
+export type Catalog = { categories: Category[]; products: Product[]; production: Record<ProductionId, Production>; shipping: Record<ShippingId, Shipping> };
+/** Built-in catalog. The live one is data/catalog.json (edited in /admin/catalog) — see catalog-store.ts. */
+export const DEFAULT_CATALOG: Catalog = { categories: CATEGORIES, products: PRODUCTS, production: PRODUCTION, shipping: SHIPPING };
+export const liveProducts = (cat: Catalog) => cat.products.filter((p) => p.active !== false);
+export const liveShipping = (cat: Catalog) => SHIPPING_IDS.filter((id) => cat.shipping[id].active !== false);
+
 const r2 = (n: number) => Math.round(n * 100 + 1e-9) / 100; // epsilon: 1.425 must round up
 export const ils = (n: number) => `₪${n.toLocaleString("he-IL", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
-export const findProduct = (id: string) => PRODUCTS.find((p) => p.id === id || p.name === id);
+export const findProduct = (cat: Catalog, id: string) => cat.products.find((p) => p.id === id || p.name === id);
 export const tierAt = (t: Tier[] | undefined, q: number) => (t?.length ? (t.findLast(([from]) => q >= from) ?? t[0])[1] : 0);
 
 /** Values that stay visible after applying the product's rules to the current selection. */
 export function visibleValues(p: Product, sel: Record<string, string>) {
-  const hidden = new Set(p.rules?.filter((r) => r.if[1].includes(sel[r.if[0]])).flatMap((r) => r.hide[1].map((v) => `${r.hide[0]}:${v}`)));
+  const off = p.options.flatMap((o) => o.values.filter((v) => v.active === false).map((v) => `${o.id}:${v.id}`));
+  const hidden = new Set([...off, ...(p.rules ?? []).filter((r) => r.if[1].includes(sel[r.if[0]])).flatMap((r) => r.hide[1].map((v) => `${r.hide[0]}:${v}`))]);
   return Object.fromEntries(p.options.map((o) => [o.id, o.values.filter((v) => !hidden.has(`${o.id}:${v.id}`))]));
 }
 
@@ -191,18 +203,21 @@ export type Line = {
   unitPrice: number; setup: number; subtotal: number; artwork?: string; placement?: string;
 };
 
-export function priceLine(input: LineInput): Line {
-  const p = findProduct(String(input.productId));
+export function priceLine(cat: Catalog, input: LineInput): Line {
+  const p = findProduct(cat, String(input.productId));
   if (!p) throw new Error(`מוצר לא קיים: ${input.productId}`);
+  if (p.active === false) throw new Error(`${p.name} אינו זמין כרגע`);
   const sel = normalize(p, input.options ?? {});
   const splitOpt = p.options.find((o) => o.kind === "split");
   let quantity = Number(input.quantity);
   let split: Record<string, number> | undefined;
   if (splitOpt) {
-    const raw = input.split && Object.keys(input.split).length ? input.split : { [splitOpt.values[0].id]: quantity };
+    const sizes = splitOpt.values.filter((v) => v.active !== false);
+    if (!sizes.length) throw new Error(`אין ${splitOpt.title} זמינה ל${p.name}`);
+    const raw = input.split && Object.keys(input.split).length ? input.split : { [sizes[0].id]: quantity };
     split = {};
     for (const [k, n] of Object.entries(raw)) {
-      if (!splitOpt.values.some((v) => v.id === k)) throw new Error(`${splitOpt.title} לא קיימת: ${k}`);
+      if (!sizes.some((v) => v.id === k)) throw new Error(`${splitOpt.title} לא קיימת: ${k}`);
       if (!Number.isInteger(n) || n < 0) throw new Error(`כמות לא תקינה למידה ${k}`);
       if (n) split[k] = n;
     }
@@ -216,33 +231,36 @@ export function priceLine(input: LineInput): Line {
 
   const chosen = p.options.filter((o) => sel[o.id]).map((o) => [o, o.values.find((v) => v.id === sel[o.id])!] as const);
   const raw = tierAt(p.base, quantity) + chosen.reduce((s, [, v]) => s + tierAt(v.tiers, quantity), 0);
-  const unitPrice = r2(raw * (1 + PRODUCTION[production].pct));
+  const unitPrice = r2(raw * (1 + cat.production[production].pct));
+  if (!(unitPrice > 0)) throw new Error(`שגיאת מחירון ב${p.name} — פנו אלינו`);
   const setup = p.setup ?? 0;
   return {
     productId: p.id, productName: p.name, quantity, options: sel,
     labels: [...chosen.map(([o, v]) => [o.title, v.title] as [string, string]), ...(split ? [[splitOpt!.title, Object.entries(split).map(([k, n]) => `${k}×${n}`).join(", ")] as [string, string]] : [])],
-    split, production, productionLabel: PRODUCTION[production].label, productionDays: PRODUCTION[production].days,
+    split, production, productionLabel: cat.production[production].label, productionDays: cat.production[production].days,
     unitPrice, setup, subtotal: r2(unitPrice * quantity + setup),
     artwork: input.artwork && /^[\w-]+\.(png|jpg|webp|pdf|svg)$/.test(input.artwork) ? input.artwork : undefined,
     placement: input.placement?.slice(0, 120),
   };
 }
 
-export type Totals = { subtotal: number; shipping: number; vat: number; total: number; shippingMethod: ShippingId };
-export function totals(lines: Pick<Line, "subtotal">[], method: string = "home"): Totals {
-  const m = (method in SHIPPING ? method : "home") as ShippingId;
+export type Totals = { subtotal: number; shipping: number; vat: number; total: number; shippingMethod: ShippingId; shippingLabel: string; shippingDays: number };
+export function totals(cat: Catalog, lines: Pick<Line, "subtotal">[], method: string = "home"): Totals {
+  const live = liveShipping(cat);
+  const m = (live.includes(method as ShippingId) ? method : live.includes("home") ? "home" : live[0]) as ShippingId;
+  if (!m) throw new Error("אין שיטת משלוח זמינה");
   const subtotal = r2(lines.reduce((s, l) => s + l.subtotal, 0));
-  const s = SHIPPING[m];
+  const s = cat.shipping[m];
   const shipping = s.freeFrom && subtotal >= s.freeFrom ? 0 : s.price;
   const vat = r2((subtotal + shipping) * VAT);
-  return { subtotal, shipping, vat, total: r2(subtotal + shipping + vat), shippingMethod: m };
+  return { subtotal, shipping, vat, total: r2(subtotal + shipping + vat), shippingMethod: m, shippingLabel: s.label, shippingDays: s.days };
 }
 
 export const withVat = (n: number) => r2(n * (1 + VAT));
 /** Lowest per-unit price incl. VAT (default options, largest preset, cheapest production) — for "החל מ-" labels. */
-export function fromPrice(p: Product) {
-  const cheapest = p.production.toSorted((a, b) => PRODUCTION[a].pct - PRODUCTION[b].pct)[0];
-  return withVat(priceLine({ productId: p.id, quantity: p.qty.presets.at(-1), production: cheapest }).unitPrice);
+export function fromPrice(cat: Catalog, p: Product) {
+  const cheapest = p.production.toSorted((a, b) => cat.production[a].pct - cat.production[b].pct)[0];
+  try { return withVat(priceLine(cat, { productId: p.id, quantity: p.qty.presets.at(-1), production: cheapest }).unitPrice); } catch { return 0; }
 }
 export const mockupFor = (p: Product, sel: Record<string, string>): Mockup =>
   p.options.flatMap((o) => o.values.filter((v) => sel[o.id] === v.id && v.mockup)).at(-1)?.mockup ?? p.mockup;
@@ -266,4 +284,56 @@ export function addBusinessDays(from: Date, n: number) {
   const d = new Date(from);
   while (n > 0) { d.setDate(d.getDate() + 1); if (d.getDay() < 5) n--; }
   return d;
+}
+
+const tiersOk = (t: Tier[] | undefined, signed = false) =>
+  !t || (t.every(([f, u], i) => Number.isInteger(f) && f >= 1 && Number.isFinite(u) && (signed || u >= 0) && (i === 0 || f > t[i - 1][0])));
+
+/** Human-readable problems in a catalog (empty = valid). Used live in the admin editor and enforced on save. */
+export function catalogErrors(cat: Catalog): string[] {
+  const e: string[] = [];
+  for (const id of PRODUCTION_IDS) { const x = cat.production[id]; if (!x?.label || !Number.isInteger(x.days) || x.days < 0 || !(x.pct > -1 && x.pct <= 5)) e.push(`זמן ייצור "${x?.label ?? id}": ימים ואחוז לא תקינים`); }
+  for (const id of SHIPPING_IDS) { const x = cat.shipping[id]; if (!x?.label || !(x.price >= 0) || !Number.isInteger(x.days) || x.days < 0 || !(x.freeFrom >= 0)) e.push(`משלוח "${x?.label ?? id}": ערכים לא תקינים`); }
+  if (!liveShipping(cat).length) e.push("חייבת להיות לפחות שיטת משלוח פעילה אחת");
+  for (const p of cat.products) {
+    const n = `"${p.name || p.id}"`;
+    if (!p.name?.trim()) e.push(`${p.id}: חסר שם`);
+    const { min, max, step, presets } = p.qty;
+    if (!(Number.isInteger(min) && min >= 1 && Number.isInteger(max) && max >= min && Number.isInteger(step) && step >= 1)) e.push(`${n}: מינימום/מקסימום/קפיצה לא תקינים`);
+    if (!presets.length || presets.some((q, i) => !Number.isInteger(q) || q < min || q > max || (i && q <= presets[i - 1]))) e.push(`${n}: כמויות מוצעות חייבות להיות בעלייה ובין המינימום למקסימום`);
+    if (!p.base.length || !tiersOk(p.base)) e.push(`${n}: מדרגות מחיר בסיס לא תקינות (כמות שלמה בעלייה, מחיר ≥ 0)`);
+    if (!(Number.isFinite(p.setup ?? 0) && (p.setup ?? 0) >= 0)) e.push(`${n}: עלות הכנה לא תקינה`);
+    if (!p.production.length) e.push(`${n}: יש לבחור לפחות זמן ייצור אחד`);
+    for (const o of p.options) for (const v of o.values) {
+      if (!v.title?.trim()) e.push(`${n} › ${o.title}: ערך בלי שם`);
+      if (!tiersOk(v.tiers, true)) e.push(`${n} › ${o.title} › ${v.title}: מדרגות תוספת לא תקינות`);
+    }
+    if (p.active === false || e.length) continue;
+    for (const q of presets) for (const pr of p.production) // every default combination must price above zero
+      try { priceLine(cat, { productId: p.id, quantity: q, production: pr }); } catch (err) { e.push(`${n} (${q} יח׳): ${(err as Error).message}`); break; }
+  }
+  return e;
+}
+
+/** Apply admin edits onto a product without letting ids/structure change (only editable fields are taken). */
+export function mergeProductEdit(cur: Product, ed: Product): Product {
+  const num = (x: unknown) => Number(x);
+  const tiers = (t: unknown): Tier[] => (Array.isArray(t) ? t.map((r) => [num(r?.[0]), num(r?.[1])] as Tier) : []);
+  return {
+    ...cur, name: String(ed.name ?? "").slice(0, 80), desc: String(ed.desc ?? "").slice(0, 200), active: ed.active !== false,
+    base: tiers(ed.base), setup: num(ed.setup ?? 0),
+    qty: { min: num(ed.qty?.min), max: num(ed.qty?.max), step: num(ed.qty?.step), presets: (Array.isArray(ed.qty?.presets) ? ed.qty.presets : []).map(num) },
+    production: PRODUCTION_IDS.filter((id) => ed.production?.includes(id)),
+    details: (Array.isArray(ed.details) ? ed.details : cur.details).map((d) => String(d).slice(0, 160)).filter(Boolean).slice(0, 8),
+    options: cur.options.map((o) => {
+      const eo = ed.options?.find((x) => x.id === o.id);
+      return { ...o, title: String(eo?.title ?? o.title).slice(0, 40), values: o.values.map((v) => {
+        const ev = eo?.values?.find((x) => x.id === v.id);
+        if (!ev) return v;
+        const t = tiers(ev.tiers);
+        return { ...v, title: String(ev.title ?? v.title).slice(0, 60), tiers: t.length ? t : undefined, active: ev.active !== false,
+          ...(v.color && /^#[0-9a-f]{6}$/i.test(String(ev.color)) ? { color: String(ev.color) } : {}) };
+      }) };
+    }),
+  };
 }

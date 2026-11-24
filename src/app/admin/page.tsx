@@ -3,9 +3,10 @@ import { connection } from "next/server";
 import Link from "next/link";
 import { ChevronDown, Download, MessageCircle, Globe } from "lucide-react";
 import { listOrders, STATUSES, type Order } from "@/lib/orders";
-import { ils, SHIPPING } from "@/lib/catalog";
+import { ils } from "@/lib/catalog";
 import { GlowCard } from "@/components/glow-card";
 import { updateStatus } from "./actions";
+import { AdminHeader } from "@/components/admin-header";
 
 export const metadata = { title: "ניהול הזמנות — דפוס", robots: { index: false } };
 
@@ -18,10 +19,7 @@ const date = (iso: string) => new Date(iso).toLocaleString("he-IL", { dateStyle:
 export default function AdminPage({ searchParams }: PageProps<"/admin">) {
   return (
     <main className="mx-auto max-w-6xl space-y-8 px-4 py-6">
-      <header className="flex items-center justify-between">
-        <span className="text-xl font-bold">דפוס<span className="text-neutral-500">.</span> <span className="text-base font-normal text-neutral-400">ניהול הזמנות</span></span>
-        <Link href="/" className="text-sm text-neutral-400 hover:text-white">לאתר ←</Link>
-      </header>
+      <AdminHeader active="orders" />
       <Suspense fallback={<p className="text-neutral-500">טוען הזמנות…</p>}>
         <Orders searchParams={searchParams} />
       </Suspense>
@@ -84,7 +82,7 @@ async function Orders({ searchParams }: { searchParams: PageProps<"/admin">["sea
                     <dd>{o.customer.name}</dd>
                     <dd><a href={`tel:${o.customer.phone}`} className="underline-offset-2 hover:underline" dir="ltr">{o.customer.phone}</a></dd>
                     {o.customer.email && <dd><a href={`mailto:${o.customer.email}`} className="hover:underline">{o.customer.email}</a></dd>}
-                    <dd>{SHIPPING[o.totals.shippingMethod].label}{o.customer.address && ` — ${o.customer.address}, ${o.customer.city}`}</dd>
+                    <dd>{o.totals.shippingLabel}{o.customer.address && ` — ${o.customer.address}, ${o.customer.city}`}</dd>
                     {o.customer.business && <dd>{o.customer.business}{o.customer.businessId && ` · ${o.customer.businessId}`}</dd>}
                     {o.customer.notes && <dd className="text-neutral-400">הערות: {o.customer.notes}</dd>}
                     <dd className="flex items-center gap-1.5 pt-1 text-xs text-neutral-500">{o.source === "chat" ? <><MessageCircle className="h-3.5 w-3.5" /> הוזמן בצ׳אט AI</> : <><Globe className="h-3.5 w-3.5" /> הוזמן באתר</>}</dd>
@@ -108,7 +106,7 @@ async function Orders({ searchParams }: { searchParams: PageProps<"/admin">["sea
                     ))}
                     <dl className="grid grid-cols-2 gap-y-1 pt-1 sm:w-72">
                       <dt className="text-neutral-400">מוצרים</dt><dd>{ils(o.totals.subtotal)}</dd>
-                      <dt className="text-neutral-400">{SHIPPING[o.totals.shippingMethod].label}</dt><dd>{o.totals.shipping ? ils(o.totals.shipping) : "חינם"}</dd>
+                      <dt className="text-neutral-400">{o.totals.shippingLabel}</dt><dd>{o.totals.shipping ? ils(o.totals.shipping) : "חינם"}</dd>
                       <dt className="text-neutral-400">מע״מ</dt><dd>{ils(o.totals.vat)}</dd>
                       <dt className="font-semibold">סה״כ</dt><dd className="font-semibold">{ils(o.totals.total)}</dd>
                     </dl>

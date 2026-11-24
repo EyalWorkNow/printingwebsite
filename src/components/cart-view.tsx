@@ -3,34 +3,36 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Trash2, Minus, Plus, Loader2, Check, Truck, Store, Zap, Phone, FileText } from "lucide-react";
-import { findProduct, priceLine, totals, withVat, ils, mockupFor, tintFor, SHIPPING, addBusinessDays, type Line, type ShippingId } from "@/lib/catalog";
+import { findProduct, priceLine, totals, withVat, ils, mockupFor, tintFor, liveShipping, addBusinessDays, type Catalog, type Line, type ShippingId } from "@/lib/catalog";
+import { useCatalog } from "./catalog-provider";
 import { cart, useCart, useToday, type CartItem } from "@/lib/cart";
 import { Mockup } from "./mockup";
 import { GlowCard } from "./glow-card";
 
 const input = "w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-400";
-const priced = (items: CartItem[]) => items.map((i) => { try { return { i, l: priceLine(i) }; } catch (e) { return { i, err: (e as Error).message }; } });
+const priced = (cat: Catalog, items: CartItem[]) => items.map((i) => { try { return { i, l: priceLine(cat, i) }; } catch (e) { return { i, err: (e as Error).message }; } });
 type Row = ReturnType<typeof priced>[number];
 
 function Thumb({ i, l }: { i: CartItem; l?: Line }) {
-  const p = findProduct(i.productId);
+  const p = findProduct(useCatalog(), i.productId);
   if (!p) return <div className="h-20 w-20 rounded-xl border" />;
   const sel = l?.options ?? {};
   return <div className="h-20 w-20 shrink-0 rounded-xl border bg-neutral-900/50"><Mockup kind={mockupFor(p, sel)} tint={tintFor(p, sel)} src={i.thumb} uid={`-t-${i.key}`} /></div>;
 }
 
 function Summary({ lines, method, children }: { lines: Line[]; method: ShippingId; children?: React.ReactNode }) {
-  const t = totals(lines, method);
+  const cat = useCatalog();
+  const t = totals(cat, lines, method);
   return (
     <GlowCard inner="space-y-4">
       <h2 className="text-lg font-semibold">סיכום הזמנה</h2>
       <dl className="grid grid-cols-2 gap-y-1.5 text-sm">
         <dt className="text-neutral-400">מוצרים ({lines.length})</dt><dd className="text-left">{ils(Math.round((t.total - withVat(t.shipping)) * 100) / 100)}</dd>
-        <dt className="text-neutral-400">{SHIPPING[method].label}</dt><dd className="text-left">{t.shipping ? ils(withVat(t.shipping)) : "חינם"}</dd>
+        <dt className="text-neutral-400">{t.shippingLabel}</dt><dd className="text-left">{t.shipping ? ils(withVat(t.shipping)) : "חינם"}</dd>
         <dt className="border-t pt-2 text-base font-semibold">סה״כ לתשלום</dt><dd className="border-t pt-2 text-left text-2xl font-semibold">{ils(t.total)}</dd>
         <dt className="col-span-2 text-xs text-neutral-500">כולל מע״מ 18% ({ils(t.vat)})</dt>
       </dl>
-      {method === "home" && t.shipping > 0 && <p className="text-xs text-neutral-500">עוד {ils(SHIPPING.home.freeFrom - t.subtotal)} לפני מע״מ למשלוח חינם</p>}
+      {t.shippingMethod === "home" && t.shipping > 0 && cat.shipping.home.freeFrom > 0 && <p className="text-xs text-neutral-500">עוד {ils(cat.shipping.home.freeFrom - t.subtotal)} לפני מע״מ למשלוח חינם</p>}
       {children}
     </GlowCard>
   );
@@ -45,13 +47,14 @@ const Empty = () => (
 );
 
 export function CartView() {
+  const cat = useCatalog();
   const items = useCart();
-  const rows = priced(items);
+  const rows = priced(cat, items);
   const lines = rows.flatMap((r) => (r.l ? [r.l] : []));
   if (!items.length) return <Empty />;
 
   function setQty(r: Row, q: number) {
-    const p = findProduct(r.i.productId);
+    const p = findProduct(cat, r.i.productId);
     if (!p || p.options.some((o) => o.kind === "split")) return;
     cart.update(r.i.key, { quantity: Math.min(p.qty.max, Math.max(p.qty.min, q)) });
   }
@@ -60,7 +63,7 @@ export function CartView() {
     <div className="grid gap-6 lg:grid-cols-12">
       <ul className="space-y-3 lg:col-span-8">
         {rows.map((r) => {
-          const p = findProduct(r.i.productId);
+          const p = findProduct(cat, r.i.productId);
           return (
             <li key={r.i.key} className="flex gap-4 rounded-2xl border bg-neutral-950 p-4">
               <Thumb i={r.i} l={r.l} />
@@ -109,12 +112,14 @@ const STEPS = ["פרטים", "משלוח", "תשלום"];
 const SHIP_ICON = { pickup: Store, home: Truck, express: Zap };
 
 export function Checkout() {
+  const cat = useCatalog();
   const items = useCart();
   const today = useToday();
-  const rows = priced(items);
+  const rows = priced(cat, items);
   const lines = rows.flatMap((r) => (r.l ? [r.l] : []));
   const [step, setStep] = useState(0);
-  const [method, setMethod] = useState<ShippingId>("home");
+  const [picked, setMethod] = useState<ShippingId>("home");
+  const method = totals(cat, [], picked).shippingMethod; // falls back if the picked method was switched off
   const [c, setC] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -132,7 +137,7 @@ export function Checkout() {
   if (!items.length) return <Empty />;
 
   const maxDays = Math.max(...lines.map((l) => l.productionDays));
-  const eta = (m: ShippingId) => today && addBusinessDays(today, maxDays + SHIPPING[m].days).toLocaleDateString("he-IL", { weekday: "long", day: "numeric", month: "numeric" });
+  const eta = (m: ShippingId) => today && addBusinessDays(today, maxDays + cat.shipping[m].days).toLocaleDateString("he-IL", { weekday: "long", day: "numeric", month: "numeric" });
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setC({ ...c, [k]: e.target.value });
 
   function next(e: React.FormEvent) { e.preventDefault(); setErr(""); setStep(step + 1); }
@@ -174,7 +179,7 @@ export function Checkout() {
             <form onSubmit={next} className="space-y-4">
               <h2 className="text-lg font-semibold">שיטת משלוח</h2>
               <div className="grid gap-3">
-                {(Object.keys(SHIPPING) as ShippingId[]).map((m) => { const s = SHIPPING[m], I = SHIP_ICON[m], t = totals(lines, m); return (
+                {liveShipping(cat).map((m) => { const s = cat.shipping[m], I = SHIP_ICON[m], t = totals(cat, lines, m); return (
                   <label key={m} className={`flex cursor-pointer items-center gap-4 rounded-xl border p-4 ${method === m ? "border-white bg-white/5" : "hover:border-neutral-500"}`}>
                     <input type="radio" name="ship" checked={method === m} onChange={() => setMethod(m)} className="accent-white" />
                     <I className="h-5 w-5 text-neutral-400" />
@@ -200,7 +205,7 @@ export function Checkout() {
               </label>
               <div className="rounded-xl border p-4 text-sm text-neutral-300">
                 <p>{c.name} · <span dir="ltr">{c.phone}</span>{c.email && ` · ${c.email}`}</p>
-                <p className="text-neutral-400">{SHIPPING[method].label}{method !== "pickup" && ` — ${c.address}, ${c.city}`}</p>
+                <p className="text-neutral-400">{cat.shipping[method].label}{method !== "pickup" && ` — ${c.address}, ${c.city}`}</p>
               </div>
               {err && <p className="text-sm text-red-400" role="alert">{err}</p>}
               <button disabled={busy || lines.length !== rows.length} className="flex w-full items-center justify-center gap-2 rounded-lg bg-white py-3 font-medium text-black disabled:opacity-50">{busy && <Loader2 className="h-4 w-4 animate-spin" />} אישור וסיום הזמנה</button>

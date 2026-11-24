@@ -5,9 +5,10 @@ import Link from "next/link";
 import { Upload, Check, Loader2, ZoomIn, AlertTriangle, BadgeCheck, ChevronLeft, ChevronRight, ShoppingCart, FileText, Clock } from "lucide-react";
 import {
   findProduct, normalize, visibleValues, priceLine, withVat, tierAt, ils, mockupFor, tintFor, printCmFor, printDpi, dpiLevel,
-  PRODUCTION, SHIPPING, addBusinessDays, type ProductionId, type Line,
+  addBusinessDays, type ProductionId, type Line,
 } from "@/lib/catalog";
 import { cart, useToday } from "@/lib/cart";
+import { useCatalog } from "./catalog-provider";
 import { Mockup } from "./mockup";
 import { GlowCard } from "./glow-card";
 
@@ -17,14 +18,15 @@ const input = "w-full rounded-lg border border-input bg-transparent px-3 py-2 te
 const fmtDate = (d: Date) => d.toLocaleDateString("he-IL", { weekday: "short", day: "numeric", month: "numeric" });
 
 export function ProductWizard({ productId }: { productId: string }) {
-  const p = findProduct(productId)!;
+  const cat = useCatalog();
+  const p = findProduct(cat, productId)!;
   const splitOpt = p.options.find((o) => o.kind === "split");
   const today = useToday();
 
   const [step, setStep] = useState(0);
   const [picked, setPicked] = useState<Record<string, string>>({});
   const [qty, setQty] = useState(p.qty.presets[Math.min(1, p.qty.presets.length - 1)]);
-  const [split, setSplit] = useState<Record<string, number>>(() => (splitOpt ? { [splitOpt.values[1]?.id ?? splitOpt.values[0].id]: p.qty.presets[0] } : {}));
+  const [split, setSplit] = useState<Record<string, number>>(() => (splitOpt ? { [(splitOpt.values.filter((v) => v.active !== false)[1] ?? splitOpt.values[0]).id]: p.qty.presets[0] } : {}));
   const [production, setProduction] = useState<ProductionId>(p.production.includes("standard") ? "standard" : p.production[0]);
   const [art, setArt] = useState<{ id?: string; name: string; preview?: string; thumb?: string; px?: [number, number]; busy?: boolean; error?: string }>();
   const [zoom, setZoom] = useState(1);
@@ -34,9 +36,9 @@ export function ProductWizard({ productId }: { productId: string }) {
   const sel = useMemo(() => normalize(p, picked), [p, picked]);
   const vis = visibleValues(p, sel);
   const input0 = { productId: p.id, quantity: qty, options: sel, split: splitOpt ? split : undefined, production };
-  const line = (() => { try { return priceLine(input0); } catch (e) { return (e as Error).message; } })(); // cheap: a few tier lookups
+  const line = (() => { try { return priceLine(cat, input0); } catch (e) { return (e as Error).message; } })(); // cheap: a few tier lookups
   const ok = typeof line !== "string";
-  const quote = (patch: Partial<typeof input0>): Line | undefined => { try { return priceLine({ ...input0, ...patch }); } catch { return undefined; } };
+  const quote = (patch: Partial<typeof input0>): Line | undefined => { try { return priceLine(cat, { ...input0, ...patch }); } catch { return undefined; } };
 
   const cm = printCmFor(p, sel);
   const dpi = art?.px && cm && printDpi(cm, art.px[0], art.px[1]);
@@ -143,12 +145,12 @@ export function ProductWizard({ productId }: { productId: string }) {
                 <>
                   <p className="text-sm text-neutral-400">חלקו את הכמות בין המידות. המחיר נקבע לפי הכמות הכוללת.</p>
                   <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
-                    {splitOpt.values.map((v) => (
+                    {splitOpt.values.filter((v) => v.active !== false).map((v) => (
                       <label key={v.id} className="space-y-1 text-center text-sm"><span className="text-neutral-400">{v.title}</span>
                         <input type="number" min={0} inputMode="numeric" value={split[v.id] ?? 0} onChange={(e) => setSplit({ ...split, [v.id]: Math.max(0, Math.floor(Number(e.target.value) || 0)) })} className={`${input} text-center`} /></label>
                     ))}
                   </div>
-                  <div className="flex flex-wrap gap-2 text-xs text-neutral-500">מדרגות מחיר: {p.qty.presets.map((n) => { const l = quote({ split: { [splitOpt.values[0].id]: n } }); return l && <span key={n} className="rounded-full border px-2 py-0.5">{n}+ · {ils(withVat(l.unitPrice))}</span>; })}</div>
+                  <div className="flex flex-wrap gap-2 text-xs text-neutral-500">מדרגות מחיר: {p.qty.presets.map((n) => { const l = quote({ split: { [splitOpt.values.find((v) => v.active !== false)?.id ?? ""]: n } }); return l && <span key={n} className="rounded-full border px-2 py-0.5">{n}+ · {ils(withVat(l.unitPrice))}</span>; })}</div>
                 </>
               ) : (
                 <>
@@ -176,11 +178,11 @@ export function ProductWizard({ productId }: { productId: string }) {
             <div className="space-y-4">
               <h2 className="text-lg font-semibold">זמן ייצור</h2>
               <div className="grid gap-3 sm:grid-cols-2">
-                {p.production.map((id) => { const pr = PRODUCTION[id]; const l = quote({ production: id }); const on = production === id; return (
+                {p.production.map((id) => { const pr = cat.production[id]; const l = quote({ production: id }); const on = production === id; return (
                   <button key={id} type="button" onClick={() => setProduction(id)} aria-pressed={on} className={`${chip(on)} flex items-center justify-between gap-3 p-4`}>
                     <span className="space-y-1">
                       <span className="flex items-center gap-2 font-medium"><Clock className="h-4 w-4" /> {pr.label} · {pr.days} ימי עסקים</span>
-                      {today && <span className="block text-xs text-neutral-500">מוכן עד {eta(pr.days)} · בשליח עד הבית ~{eta(pr.days + SHIPPING.home.days)}</span>}
+                      {today && <span className="block text-xs text-neutral-500">מוכן עד {eta(pr.days)} · בשליח עד הבית ~{eta(pr.days + cat.shipping.home.days)}</span>}
                     </span>
                     {l && <span className="text-left text-sm">{ils(withVat(l.subtotal))}{pr.pct !== 0 && <span className="block text-xs text-neutral-500">{pr.pct > 0 ? "+" : ""}{pr.pct * 100}%</span>}</span>}
                   </button>); })}

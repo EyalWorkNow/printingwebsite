@@ -3,6 +3,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { after } from "next/server";
 import { priceLine, totals, type Line, type LineInput, type Totals } from "./catalog";
+import { getCatalog } from "./catalog-store";
 
 // ponytail: JSON file + local disk, swap for a DB/object storage before multi-instance hosting
 const DATA = path.join(process.cwd(), "data");
@@ -48,8 +49,9 @@ let chain = Promise.resolve(); // ponytail: in-process write lock, single-instan
 export async function createOrder(input: { items: LineInput[]; shipping?: string; customer: Record<string, unknown>; source: Order["source"] }): Promise<Order> {
   if (!Array.isArray(input.items) || !input.items.length) throw new Error("העגלה ריקה");
   if (input.items.length > 30) throw new Error("יותר מדי פריטים בהזמנה אחת");
-  const items = input.items.map((i) => priceLine(i)); // prices are always recomputed server-side
-  const t = totals(items, input.shipping);
+  const cat = await getCatalog();
+  const items = input.items.map((i) => priceLine(cat, i)); // prices are always recomputed server-side, from the live catalog
+  const t = totals(cat, items, input.shipping);
   const order: Order = {
     id: `DP-${Date.now().toString(36).toUpperCase()}`, createdAt: new Date().toISOString(), source: input.source, items, totals: t, payment: "phone",
     customer: validateCustomer(input.customer ?? {}, t.shippingMethod !== "pickup"), status: "התקבלה",

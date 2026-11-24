@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Upload, Eye, Truck, MessageCircle, ArrowLeft } from "lucide-react";
-import { CATEGORIES, PRODUCTS, fromPrice, ils } from "@/lib/catalog";
+import { fromPrice, ils, liveProducts } from "@/lib/catalog";
+import { getCatalog } from "@/lib/catalog-store";
 import { Mockup } from "@/components/mockup";
 import { ProductCard } from "@/components/product-card";
 import { GlowCard } from "@/components/glow-card";
@@ -23,9 +24,12 @@ const FAQ = [
   { q: "אפשר להזמין כמה מוצרים יחד?", a: "בטח. כל מוצר נכנס לעגלה עם האפשרויות והקובץ שלו, ומשלמים על הכל בהזמנה אחת עם משלוח אחד." },
 ];
 
-const popular = ["business-card", "sticker", "tshirt", "mug", "flyer", "roll-up"].map((id) => PRODUCTS.find((p) => p.id === id)!);
+const POPULAR = ["business-card", "sticker", "tshirt", "mug", "flyer", "roll-up"];
 
-export default function Home() {
+export default async function Home() {
+  const cat = await getCatalog();
+  const PRODUCTS = liveProducts(cat);
+  const popular = POPULAR.flatMap((id) => PRODUCTS.filter((p) => p.id === id));
   return (
     <div className="space-y-24">
       <section className="grid items-center gap-10 pt-2 lg:grid-cols-2">
@@ -47,8 +51,9 @@ export default function Home() {
       <section id="categories" className="scroll-mt-24 space-y-6">
         <h2 className="text-2xl font-semibold md:text-3xl">קטגוריות</h2>
         <ul className="grid gap-4 sm:grid-cols-2">
-          {CATEGORIES.map((c) => {
+          {cat.categories.map((c) => {
             const items = PRODUCTS.filter((p) => p.category === c.id);
+            if (!items.length) return null;
             return (
               <li key={c.id}>
                 <Link href={`/c/${c.id}`} className="group block h-full">
@@ -57,7 +62,7 @@ export default function Home() {
                     <div className="space-y-1.5">
                       <h3 className="flex items-center gap-2 text-xl font-semibold">{c.name}<ArrowLeft className="h-4 w-4 text-neutral-500 transition group-hover:-translate-x-1" /></h3>
                       <p className="text-sm text-neutral-400">{c.desc}</p>
-                      <p className="text-xs text-neutral-500">{items.length} מוצרים · החל מ־{ils(Math.min(...items.map(fromPrice)))} ליח׳</p>
+                      <p className="text-xs text-neutral-500">{items.length} מוצרים · החל מ־{ils(Math.min(...items.map((p) => fromPrice(cat, p))))} ליח׳</p>
                     </div>
                   </GlowCard>
                 </Link>
@@ -69,7 +74,7 @@ export default function Home() {
 
       <section className="space-y-6">
         <h2 className="text-2xl font-semibold md:text-3xl">הכי מוזמנים</h2>
-        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{popular.map((p) => <li key={p.id}><ProductCard p={p} /></li>)}</ul>
+        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{popular.map((p) => <li key={p.id}><ProductCard p={p} from={fromPrice(cat, p)} /></li>)}</ul>
       </section>
 
       <section className="grid gap-4 md:grid-cols-3">

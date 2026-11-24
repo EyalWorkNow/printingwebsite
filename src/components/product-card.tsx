@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { fromPrice, ils, type Product } from "@/lib/catalog";
+import { ils, type Product } from "@/lib/catalog";
 import { Mockup } from "./mockup";
 import { GlowCard } from "./glow-card";
 
-export function ProductCard({ p }: { p: Product }) {
+export function ProductCard({ p, from }: { p: Product; from: number }) {
   return (
     <Link href={`/p/${p.id}`} className="block h-full">
       <GlowCard inner="flex flex-col gap-4">
@@ -11,7 +11,7 @@ export function ProductCard({ p }: { p: Product }) {
         <div className="space-y-1.5">
           <h3 className="text-lg font-semibold">{p.name}</h3>
           <p className="text-sm text-neutral-400">{p.desc}</p>
-          <p className="text-sm">החל מ־<b>{ils(fromPrice(p))}</b> <span className="text-neutral-500">ליח׳ כולל מע״מ</span></p>
+          <p className="text-sm">החל מ־<b>{ils(from)}</b> <span className="text-neutral-500">ליח׳ כולל מע״מ</span></p>
         </div>
       </GlowCard>
     </Link>

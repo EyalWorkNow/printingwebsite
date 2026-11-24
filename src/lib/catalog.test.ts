@@ -1,6 +1,12 @@
 // run: node --experimental-strip-types src/lib/catalog.test.ts
 import assert from "node:assert";
-import { priceLine, totals, normalize, findProduct, fromPrice, printDpi, dpiLevel, addBusinessDays, PRODUCTS } from "./catalog.ts";
+import * as C from "./catalog.ts";
+import { normalize, printDpi, dpiLevel, addBusinessDays, catalogErrors, mergeProductEdit, DEFAULT_CATALOG as cat } from "./catalog.ts";
+const priceLine = (i: C.LineInput) => C.priceLine(cat, i);
+const totals = (l: { subtotal: number }[], m?: string) => C.totals(cat, l, m);
+const findProduct = (id: string) => C.findProduct(cat, id);
+const PRODUCTS = cat.products;
+const fromPrice = (p: C.Product) => C.fromPrice(cat, p);
 
 // base + option tiers, rounded per unit
 const bc = priceLine({ productId: "business-card", quantity: 100 }); // defaults: standard, landscape, 1 side, no lamination, straight, matte300
@@ -40,11 +46,37 @@ assert.equal(priceLine({ productId: "poster", quantity: 1, options: { size: "evi
 assert.equal(priceLine({ productId: "poster", quantity: 1, artwork: "../../etc/passwd" }).artwork, undefined);
 
 // order totals: free home shipping over 500, VAT 18%
-assert.deepEqual(totals([{ subtotal: 100 }], "home"), { subtotal: 100, shipping: 39, vat: 25.02, total: 164.02, shippingMethod: "home" });
+assert.deepEqual(totals([{ subtotal: 100 }], "home"), { subtotal: 100, shipping: 39, vat: 25.02, total: 164.02, shippingMethod: "home", shippingLabel: "שליח עד הבית", shippingDays: 2 });
 assert.equal(totals([{ subtotal: 300 }, { subtotal: 250 }], "home").shipping, 0);
 assert.equal(totals([{ subtotal: 600 }], "express").shipping, 79);
 assert.equal(totals([{ subtotal: 10 }], "pickup").total, 11.8);
 for (const p of PRODUCTS) assert.ok(fromPrice(p) > 0, p.id); // every product prices with defaults
+
+// admin edits: inactive products/values, shipping switched off, validation, structure-safe merge
+const off = structuredClone(cat);
+off.products.find((p) => p.id === "poster")!.active = false;
+assert.throws(() => C.priceLine(off, { productId: "poster", quantity: 1 }), /אינו זמין/);
+off.products.find((p) => p.id === "business-card")!.options.find((o) => o.id === "lamination")!.values.find((v) => v.id === "matte")!.active = false;
+assert.equal(C.priceLine(off, { productId: "business-card", quantity: 100, options: { lamination: "matte" } }).options.lamination, "none");
+off.products.find((p) => p.id === "tshirt")!.options.find((o) => o.id === "size")!.values.find((v) => v.id === "S")!.active = false;
+assert.throws(() => C.priceLine(off, { productId: "tshirt", split: { S: 2 } }), /לא קיימת/);
+off.shipping.home.active = false;
+assert.equal(C.totals(off, [{ subtotal: 10 }], "home").shippingMethod, "pickup");
+assert.deepEqual(catalogErrors(cat), []);
+assert.deepEqual(catalogErrors(off), []);
+const bad = structuredClone(cat);
+bad.products[0].base = [[100, 1], [50, 0.5]];
+bad.products[1].qty.presets = [100, 50];
+bad.shipping.pickup.active = false; bad.shipping.home.active = false; bad.shipping.express.active = false;
+assert.equal(catalogErrors(bad).length, 3);
+const zero = structuredClone(cat); zero.products[0].base = [[100, 0]];
+assert.match(catalogErrors(zero).join(), /שגיאת מחירון/); // default combination would cost ₪0
+const bc0 = findProduct("business-card")!;
+const edited = mergeProductEdit(bc0, { ...bc0, id: "hacked", name: "כרטיס פרימיום", base: [[100, "2" as unknown as number]], options: [{ ...bc0.options[0], id: "size", values: [{ id: "standard", title: "רגיל", tiers: [[1, 0.5]] }] }] } as C.Product);
+assert.equal(edited.id, "business-card"); // ids can't be changed by an edit
+assert.equal(edited.base[0][1], 2);
+assert.equal(edited.options[0].values[0].tiers?.[0][1], 0.5);
+assert.equal(edited.options[0].values.length, 3); // values not in the edit stay as they were
 console.log("catalog ok");
 
 assert.equal(printDpi([9, 5], 1063, 591), 300);
