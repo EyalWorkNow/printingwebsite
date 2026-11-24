@@ -44,4 +44,6 @@ const g = await base.clone().greyscale().raw().toBuffer();
 const inside = [...g].filter((_, i) => solid[i]).sort((a, b) => a - b);
 const ref = inside[Math.floor(inside.length * 0.85)];
 await sharp(Buffer.from(g.map((v) => Math.min(255, Math.round((v / ref) * 255)))), { raw: { width: w, height: h, channels: 1 } }).webp({ quality: 90 }).toFile(`public/mockups/${name}-shade.webp`);
-console.log(name, w, h, "fabric ref", ref, "product px", inside.length);
+let [x0, y0, x1, y1] = [w, h, 0, 0];
+solid.forEach((b, i) => { if (b) { const x = i % w, y = (i / w) | 0; x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); } });
+console.log(name, w, h, "fabric ref", ref, "product px", inside.length, "bbox", [x0, y0, x1 - x0 + 1, y1 - y0 + 1].join(","));

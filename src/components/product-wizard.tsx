@@ -49,8 +49,8 @@ export function ProductWizard({ productId }: { productId: string }) {
 
   // real-photo mockup (pilot products): the customer sets the print size in cm, DPI follows that size
   const pm = PHOTO_MOCKUPS[p.id];
-  const zoneId = pm?.zoneFor(sel);
-  const zone = pm && zoneId ? pm.zones[zoneId] : undefined;
+  const zone = useMemo(() => pm?.zoneFor(sel, printCmFor(p, sel)), [pm, p, sel]);
+  const zoneId = zone && `${zone.label}|${zone.cm.join("x")}`;
   const aspect = art?.aspect ?? 1;
   const [placed, setPlaced] = useState<{ key: string; p: Placement }>();
   const placeKey = `${art?.preview}|${zoneId}`;
@@ -110,7 +110,7 @@ export function ProductWizard({ productId }: { productId: string }) {
           {view === "photo" && p.image ? (
             <div className="relative aspect-square w-full max-w-md overflow-hidden rounded-xl"><Image src={p.image} alt={p.name} fill priority sizes="(min-width: 1024px) 40vw, 90vw" className="object-cover" /></div>
           ) : (
-            pm && zone ? <div className="w-full max-w-md"><PhotoMockup m={pm} zone={zone} tint={tintFor(p, sel)} art={art?.preview} aspect={aspect} place={place} onPlace={setPlace} /></div>
+            pm && zone ? <div className="w-full max-w-md"><PhotoMockup key={zoneId} zone={zone} tint={tintFor(p, sel)} art={art?.preview} aspect={aspect} place={place} onPlace={setPlace} /></div>
             : <div className="aspect-square w-full max-w-md"><Mockup kind={mockupFor(p, sel)} tint={tintFor(p, sel)} src={art?.preview} zoom={zoom} fit={fit} /></div>
           )}
           {view === "mock" && zone && place && (
