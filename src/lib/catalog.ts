@@ -3,14 +3,14 @@
 //   unit  = round2((base(q) + Σ value(q)) × (1 + production surcharge))
 //   line  = unit × q + setup
 //   order = Σ lines + shipping, + VAT
-export type Mockup = "card" | "card-v" | "card-sq" | "flyer" | "poster" | "sticker" | "mug" | "shirt" | "bag" | "bottle";
+export type Mockup = "card" | "card-v" | "card-sq" | "flyer" | "poster" | "sticker" | "mug" | "shirt" | "bag" | "bottle" | "pen" | "cap";
 export type Tier = [from: number, unit: number]; // ₪ per unit before VAT, from `from` units up
 export type Value = { id: string; title: string; tiers?: Tier[]; color?: string; cm?: [number, number]; mockup?: Mockup; active?: boolean }; // active:false = hidden from customers
 // first value is the default. kind "split" = quantity is split across values (e.g. shirt sizes S×5, M×3)
 export type Option = { id: string; title: string; kind?: "color" | "split"; values: Value[] };
 export type Rule = { if: [option: string, values: string[]]; hide: [option: string, values: string[]] };
 export type Product = {
-  id: string; name: string; desc: string; category: string; mockup: Mockup; active?: boolean;
+  id: string; name: string; desc: string; category: string; mockup: Mockup; active?: boolean; image?: string; // image: product photo in /public
   base: Tier[]; setup?: number; options: Option[]; rules?: Rule[];
   qty: { min: number; max: number; step: number; presets: number[] };
   production: ProductionId[]; printCm?: [number, number]; details: string[];
@@ -37,12 +37,12 @@ const SHIPPING: Record<ShippingId, Shipping> = {
   express: { label: "שליח אקספרס", desc: "יום עסקים אחד אחרי הייצור", price: 79, days: 1, freeFrom: 0 },
 };
 
-export type Category = { id: string; name: string; desc: string };
+export type Category = { id: string; name: string; desc: string; image?: string };
 const CATEGORIES: Category[] = [
-  { id: "print", name: "מוצרי דפוס", desc: "כרטיסי ביקור, פליירים, ברושורים, נייר לוגו ומחברות" },
+  { id: "print", name: "מוצרי דפוס", desc: "כרטיסי ביקור, פליירים, ברושורים, נייר לוגו ומחברות", image: "/img/notebook.webp" },
   { id: "signs", name: "מדבקות ושילוט", desc: "מדבקות בחיתוך, פוסטרים, רול-אפ והדפסה על קנבס" },
-  { id: "apparel", name: "ביגוד ממותג", desc: "חולצות, קפוצ׳ונים וחולצות ילדים עם הלוגו שלכם" },
-  { id: "promo", name: "מוצרי פרסום", desc: "ספלים, בקבוקים ותיקים ממותגים ללקוחות ולצוות" },
+  { id: "apparel", name: "ביגוד ממותג", desc: "חולצות, קפוצ׳ונים, כובעים וחולצות ילדים עם הלוגו שלכם", image: "/img/set-apparel.webp" },
+  { id: "promo", name: "מוצרי פרסום", desc: "ספלים, עטים, בקבוקים ותיקים ממותגים ללקוחות ולצוות", image: "/img/set-office.webp" },
 ];
 
 const SIDES: Option = { id: "sides", title: "צידי הדפסה", values: [{ id: "1", title: "צד אחד" }, { id: "2", title: "דו צדדי", tiers: [[1, 0.12], [500, 0.06], [2000, 0.03]] }] };
@@ -95,11 +95,11 @@ const PRODUCTS: Product[] = [
     options: [{ id: "paper", title: "נייר", values: [{ id: "100", title: "אופסט 100 גרם", cm: [21, 29.7] }, { id: "120", title: "אופסט 120 גרם", tiers: [[1, 0.05]], cm: [21, 29.7] }] }],
     qty: { min: 100, max: 10000, step: 50, presets: [100, 250, 500, 1000, 2500] }, production: ["fast", "standard"],
     details: ["מותאם להדפסה חוזרת במדפסת לייזר", "צבע מלא, צד אחד"] },
-  { id: "notebook", name: "מחברת ממותגת", desc: "A5 ספירלה, כריכה מודפסת מלאה", category: "print", mockup: "flyer", setup: 40,
+  { id: "notebook", name: "מחברת ממותגת", desc: "A5, כריכה מודפסת — ספירלה או כריכה קשה עם גומייה", category: "print", mockup: "flyer", setup: 40, image: "/img/notebook.webp",
     base: [[10, 22], [25, 17], [50, 14], [100, 11.5], [250, 9.5]],
-    options: [{ id: "pages", title: "דפים", values: [{ id: "50", title: "50 דפים שורה", cm: [14.8, 21] }, { id: "100", title: "100 דפים שורה", tiers: [[1, 3.5]], cm: [14.8, 21] }] }, { id: "cover", title: "כריכה", values: [{ id: "soft", title: "כריכה רכה" }, { id: "hard", title: "כריכה קשה", tiers: [[1, 6], [100, 4.5]] }] }],
+    options: [{ id: "pages", title: "דפים", values: [{ id: "50", title: "50 דפים שורה", cm: [14.8, 21] }, { id: "100", title: "100 דפים שורה", tiers: [[1, 3.5]], cm: [14.8, 21] }] }, { id: "cover", title: "כריכה", values: [{ id: "soft", title: "ספירלה, כריכה רכה" }, { id: "hard", title: "כריכה קשה עם גומייה וסימנייה", tiers: [[1, 6], [100, 4.5]] }] }],
     qty: { min: 10, max: 2000, step: 5, presets: [10, 25, 50, 100, 250] }, production: ["fast", "standard", "saver"],
-    details: ["ספירלה מתכת", "כריכה בהדפסה מלאה מקדימה ומאחור", "מתנה מושלמת לכנסים ולעובדים"] },
+    details: ["ספירלת מתכת או כריכה קשה עם גומייה וסימנייה", "כריכה בהדפסה מלאה מקדימה ומאחור", "מתנה מושלמת לכנסים ולעובדים"] },
   // ── stickers & signs
   { id: "sticker", name: "מדבקות", desc: "חיתוך לפי צורה, נייר או ויניל עמיד", category: "signs", mockup: "sticker", setup: 25,
     base: [[50, 1.9], [100, 1.2], [250, 0.7], [500, 0.45], [1000, 0.3], [5000, 0.18]],
@@ -127,12 +127,12 @@ const PRODUCTS: Product[] = [
     qty: { min: 1, max: 100, step: 1, presets: [1, 5, 10] }, production: ["fast", "standard"],
     details: ["מתיחה ידנית על מסגרת עץ", "מגיע עם תלייה מוכנה"] },
   // ── apparel
-  { id: "tshirt", name: "חולצה ממותגת", desc: "כותנה 100%, הדפסת DTF חדה ועמידה", category: "apparel", mockup: "shirt",
+  { id: "tshirt", name: "חולצה ממותגת", desc: "כותנה 100%, הדפסת DTF חדה ועמידה", category: "apparel", mockup: "shirt", image: "/img/tshirt.webp",
     base: [[1, 32], [10, 27], [20, 24], [50, 21], [100, 18]],
     options: [{ id: "color", title: "צבע חולצה", kind: "color", values: SHIRT_COLORS }, SHIRT_PRINT, sizes("S", "M", "L", "XL", "XXL")],
     qty: { min: 1, max: 1000, step: 1, presets: [1, 10, 20, 50, 100] }, production: ["fast", "standard", "saver"], printCm: [28, 35],
     details: ["כותנה סרוקה 160 גרם", "הדפסת DTF — עמידה בכביסה", "אפשר לחלק את הכמות בין מידות"] },
-  { id: "hoodie", name: "קפוצ׳ון ממותג", desc: "פליז 280 גרם עם כיס קנגורו", category: "apparel", mockup: "shirt",
+  { id: "hoodie", name: "קפוצ׳ון ממותג", desc: "פליז 280 גרם עם כיס קנגורו", category: "apparel", mockup: "shirt", image: "/img/hoodie.webp",
     base: [[1, 89], [10, 79], [20, 72], [50, 65]],
     options: [{ id: "color", title: "צבע", kind: "color", values: SHIRT_COLORS.filter((c) => ["black", "navy", "gray", "white"].includes(c.id)) }, SHIRT_PRINT, sizes("S", "M", "L", "XL", "XXL")],
     qty: { min: 1, max: 500, step: 1, presets: [1, 10, 20, 50] }, production: ["fast", "standard"], printCm: [28, 35],
@@ -142,20 +142,32 @@ const PRODUCTS: Product[] = [
     options: [{ id: "color", title: "צבע חולצה", kind: "color", values: SHIRT_COLORS }, { ...SHIRT_PRINT, values: SHIRT_PRINT.values.map((v) => ({ ...v, cm: [20, 25] as [number, number] })) }, sizes("2", "4", "6", "8", "10", "12", "14")],
     qty: { min: 1, max: 1000, step: 1, presets: [1, 10, 20, 50] }, production: ["fast", "standard", "saver"], printCm: [20, 25],
     details: ["מושלם לחוגים, ימי הולדת וגנים", "הדפסה בטוחה לעור", "אפשר לחלק את הכמות בין מידות"] },
+  { id: "cap", name: "כובע מצחייה ממותג", desc: "כותנה מוברשת, רקמה או הדפסה בחזית", category: "apparel", mockup: "cap", image: "/img/cap.webp", setup: 60,
+    base: [[10, 34], [25, 28], [50, 24], [100, 21], [250, 18]],
+    options: [{ id: "color", title: "צבע כובע", kind: "color", values: SHIRT_COLORS.filter((c) => ["black", "navy", "white", "red", "gray"].includes(c.id)) },
+      { id: "branding", title: "מיתוג", values: [{ id: "print", title: "הדפסה בחזית", cm: [8, 5] }, { id: "embroidery", title: "רקמה בחזית", tiers: [[1, 9], [100, 6]], cm: [8, 5] }] }],
+    qty: { min: 10, max: 2000, step: 5, presets: [10, 25, 50, 100, 250] }, production: ["standard", "saver"],
+    details: ["סגירה מתכווננת — מידה אחת לכולם", "רקמה עמידה במיוחד ללוגו קטן", "עלות הכנה כוללת דיגיטציה לרקמה"] },
   // ── promo
-  { id: "mug", name: "ספל ממותג", desc: "קרמיקה 330 מ״ל, הדפסת סובלימציה", category: "promo", mockup: "mug",
+  { id: "mug", name: "ספל ממותג", desc: "קרמיקה 330 מ״ל, הדפסת סובלימציה", category: "promo", mockup: "mug", image: "/img/mug.webp",
     base: [[1, 39], [12, 27], [36, 19], [72, 15], [144, 12]],
     options: [{ id: "inside", title: "צבע פנים", kind: "color", values: [{ id: "white", title: "לבן", color: "#fafafa" }, { id: "black", title: "שחור", color: "#171717", tiers: [[1, 4]] }, { id: "red", title: "אדום", color: "#c62828", tiers: [[1, 4]] }, { id: "blue", title: "כחול", color: "#1e4fa3", tiers: [[1, 4]] }] },
       { id: "print", title: "הדפסה", values: [{ id: "one", title: "צד אחד", cm: [9, 8] }, { id: "wrap", title: "מסביב (360°)", tiers: [[1, 3]], cm: [20, 8] }] }],
     qty: { min: 1, max: 2000, step: 1, presets: [1, 12, 36, 72, 144] }, production: ["fast", "standard", "saver"],
     details: ["מתאים למדיח כלים", "הדפסת סובלימציה בצבע מלא", "נארז בקופסה אישית"] },
+  { id: "pen", name: "עט ממותג", desc: "עט כדורי לחיץ, גוף מט, דיו כחולה", category: "promo", mockup: "pen", image: "/img/pen.webp",
+    base: [[50, 3.9], [100, 2.9], [250, 2.2], [500, 1.7], [1000, 1.3]],
+    options: [{ id: "color", title: "צבע עט", kind: "color", values: [{ id: "black", title: "שחור", color: "#171717" }, { id: "navy", title: "כחול", color: "#1e2a5a" }, { id: "white", title: "לבן", color: "#fafafa" }, { id: "red", title: "אדום", color: "#c62828" }] },
+      { id: "branding", title: "מיתוג", values: [{ id: "one", title: "הדפסה בצבע אחד", cm: [4, 0.8] }, { id: "full", title: "הדפסה צבעונית מלאה", tiers: [[1, 0.6], [500, 0.35]], cm: [4, 0.8] }, { id: "engrave", title: "חריטת לייזר", tiers: [[1, 0.9], [500, 0.5]], cm: [4, 0.8] }] }],
+    qty: { min: 50, max: 10000, step: 50, presets: [50, 100, 250, 500, 1000] }, production: ["standard", "saver"],
+    details: ["מתאים לכנסים, ימי עיון ודלפקי קבלה", "אזור הדפסה עד 4×0.8 ס״מ", "דיו כחולה איכותית"] },
   { id: "bottle", name: "בקבוק נירוסטה", desc: "750 מ״ל דופן כפולה, חריטה או הדפסה", category: "promo", mockup: "bottle",
     base: [[10, 62], [25, 52], [50, 45], [100, 39]],
     options: [{ id: "color", title: "צבע", kind: "color", values: [{ id: "white", title: "לבן", color: "#fafafa" }, { id: "black", title: "שחור", color: "#171717" }, { id: "steel", title: "נירוסטה", color: "#b0b6bc" }, { id: "navy", title: "כחול", color: "#1e2a5a" }] },
       { id: "branding", title: "מיתוג", values: [{ id: "print", title: "הדפסה צבעונית", cm: [6, 8] }, { id: "engrave", title: "חריטת לייזר", tiers: [[1, 6]], cm: [6, 8] }] }],
     qty: { min: 10, max: 2000, step: 5, presets: [10, 25, 50, 100] }, production: ["standard", "saver"],
     details: ["שומר קור 24 שעות וחום 12 שעות", "חריטת לייזר — לוגו בצבע אחד שלא יורד"] },
-  { id: "tote", name: "תיק בד ממותג", desc: "כותנה 140 גרם, ידיות ארוכות", category: "promo", mockup: "bag",
+  { id: "tote", name: "תיק בד ממותג", desc: "כותנה 140 גרם, ידיות ארוכות", category: "promo", mockup: "bag", image: "/img/tote.webp",
     base: [[25, 14], [50, 11], [100, 8.5], [250, 7], [500, 6]],
     options: [{ id: "color", title: "צבע תיק", kind: "color", values: [{ id: "natural", title: "טבעי", color: "#efe6d2" }, { id: "black", title: "שחור", color: "#171717", tiers: [[1, 1]] }, { id: "navy", title: "כחול", color: "#1e2a5a", tiers: [[1, 1]] }] },
       { id: "print", title: "הדפסה", values: [{ id: "one", title: "צד אחד", cm: [25, 25] }, { id: "two", title: "שני צדדים", tiers: [[1, 3.5], [250, 2.5]], cm: [25, 25] }] }],

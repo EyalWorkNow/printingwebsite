@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { Upload, Check, Loader2, ZoomIn, AlertTriangle, BadgeCheck, ChevronLeft, ChevronRight, ShoppingCart, FileText, Clock } from "lucide-react";
 import {
   findProduct, normalize, visibleValues, priceLine, withVat, tierAt, ils, mockupFor, tintFor, printCmFor, printDpi, dpiLevel,
@@ -32,6 +33,7 @@ export function ProductWizard({ productId }: { productId: string }) {
   const [zoom, setZoom] = useState(1);
   const [fit, setFit] = useState(false);
   const [added, setAdded] = useState(false);
+  const [view, setView] = useState<"photo" | "mock">(p.image ? "photo" : "mock");
 
   const sel = useMemo(() => normalize(p, picked), [p, picked]);
   const vis = visibleValues(p, sel);
@@ -48,10 +50,10 @@ export function ProductWizard({ productId }: { productId: string }) {
     if (!f) return;
     if (art?.preview) URL.revokeObjectURL(art.preview);
     const preview = f.type.startsWith("image/") ? URL.createObjectURL(f) : undefined;
-    setArt({ name: f.name, preview, busy: true }); setZoom(1); setFit(false);
+    setArt({ name: f.name, preview, busy: true }); setZoom(1); setFit(false); setView("mock");
     let px: [number, number] | undefined, thumb: string | undefined;
     if (preview) {
-      const img = new Image();
+      const img = new window.Image();
       img.src = preview;
       await img.decode().catch(() => {});
       if (f.type !== "image/svg+xml" && img.naturalWidth) px = [img.naturalWidth, img.naturalHeight]; // SVG is vector — DPI never limits it
@@ -85,8 +87,19 @@ export function ProductWizard({ productId }: { productId: string }) {
       {/* mockup */}
       <div className="lg:col-span-5">
         <GlowCard className="h-auto lg:sticky lg:top-24" inner="flex flex-col items-center justify-center gap-4 bg-neutral-900/40 p-4">
-          <div className="aspect-square w-full max-w-md"><Mockup kind={mockupFor(p, sel)} tint={tintFor(p, sel)} src={art?.preview} zoom={zoom} fit={fit} /></div>
-          {art?.preview && (
+          {p.image && (
+            <div className="flex gap-1 self-stretch rounded-xl border p-1 text-xs" role="tablist" aria-label="תצוגה">
+              {(["photo", "mock"] as const).map((v) => (
+                <button key={v} type="button" role="tab" aria-selected={view === v} onClick={() => setView(v)} className={`flex-1 rounded-lg py-1.5 ${view === v ? "bg-white/10 text-white" : "text-neutral-400 hover:text-white"}`}>{v === "photo" ? "תמונת מוצר" : "הדמיה עם הקובץ שלך"}</button>
+              ))}
+            </div>
+          )}
+          {view === "photo" && p.image ? (
+            <div className="relative aspect-square w-full max-w-md overflow-hidden rounded-xl"><Image src={p.image} alt={p.name} fill priority sizes="(min-width: 1024px) 40vw, 90vw" className="object-cover" /></div>
+          ) : (
+            <div className="aspect-square w-full max-w-md"><Mockup kind={mockupFor(p, sel)} tint={tintFor(p, sel)} src={art?.preview} zoom={zoom} fit={fit} /></div>
+          )}
+          {view === "mock" && art?.preview && (
             <div className="flex w-full max-w-sm items-center gap-3 text-xs text-neutral-400">
               <ZoomIn className="h-4 w-4 shrink-0" />
               <input type="range" min={0.5} max={2} step={0.05} value={zoom} onChange={(e) => setZoom(Number(e.target.value))} aria-label="זום על הגרפיקה" className="flex-1 accent-white" />
@@ -95,7 +108,7 @@ export function ProductWizard({ productId }: { productId: string }) {
             </div>
           )}
           {art && !art.preview && <p className="flex items-center gap-2 text-xs text-neutral-400"><FileText className="h-4 w-4" /> {art.name} — תצוגה מקדימה זמינה לתמונות בלבד</p>}
-          <p className="text-center text-xs text-neutral-500">הדמיה להמחשה. ייתכנו הבדלי גוון קלים בין המסך להדפסה.</p>
+          <p className="text-center text-xs text-neutral-500">{view === "photo" ? "תמונת דוגמה — הלוגו שלכם יודפס באותו מיקום." : "הדמיה להמחשה. ייתכנו הבדלי גוון קלים בין המסך להדפסה."}</p>
         </GlowCard>
       </div>
 
@@ -124,7 +137,7 @@ export function ProductWizard({ productId }: { productId: string }) {
                       const on = sel[o.id] === v.id;
                       const delta = withVat(tierAt(v.tiers, ok ? line.quantity : qty));
                       return o.kind === "color" ? (
-                        <button key={v.id} type="button" onClick={() => setPicked({ ...picked, [o.id]: v.id })} aria-label={v.title} aria-pressed={on} title={v.title}
+                        <button key={v.id} type="button" onClick={() => { setPicked({ ...picked, [o.id]: v.id }); if (o.id !== "inside") setView("mock"); }} aria-label={v.title} aria-pressed={on} title={v.title}
                           className={`h-9 w-9 rounded-full border-2 ${on ? "border-white ring-2 ring-white/30" : "border-neutral-700"}`} style={{ background: v.color }} />
                       ) : (
                         <button key={v.id} type="button" onClick={() => setPicked({ ...picked, [o.id]: v.id })} aria-pressed={on} className={chip(on)}>

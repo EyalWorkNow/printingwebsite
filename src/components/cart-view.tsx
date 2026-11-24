@@ -17,6 +17,8 @@ function Thumb({ i, l }: { i: CartItem; l?: Line }) {
   const p = findProduct(useCatalog(), i.productId);
   if (!p) return <div className="h-20 w-20 rounded-xl border" />;
   const sel = l?.options ?? {};
+  // eslint-disable-next-line @next/next/no-img-element -- tiny local thumb
+  if (!i.thumb && p.image) return <img src={p.image} alt="" className="h-20 w-20 shrink-0 rounded-xl border object-cover" />;
   return <div className="h-20 w-20 shrink-0 rounded-xl border bg-neutral-900/50"><Mockup kind={mockupFor(p, sel)} tint={tintFor(p, sel)} src={i.thumb} uid={`-t-${i.key}`} /></div>;
 }
 
