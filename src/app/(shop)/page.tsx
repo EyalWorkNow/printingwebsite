@@ -14,7 +14,7 @@ const STEPS = [
   { icon: Upload, t: "מעלים גרפיקה", d: "PDF, PNG, JPG או SVG. רואים הדמיה ובדיקת איכות להדפסה." },
   { icon: Truck, t: "מקבלים", d: "ייצור מיום עסקים אחד, איסוף עצמי או שליח עד הבית." },
 ];
-const POPULAR = ["tshirt", "hoodie", "mug", "tote", "notebook", "pen", "business-card", "sticker", "cap"];
+const POPULAR = ["tshirt", "hoodie", "mug", "roll-up", "sticker", "tote", "notebook", "pen", "jacket", "charger"];
 
 export default async function Home() {
   const cat = await getCatalog();
@@ -46,7 +46,7 @@ export default async function Home() {
         <div className="grid grid-cols-2 grid-rows-2 gap-3 md:gap-4">
           <HeroTile src="/img/set-apparel.webp" alt="חולצה, קפוצ׳ון ותיק בד ממותגים" href="/c/apparel" label="ביגוד ממותג" price={from("tshirt")} className="row-span-2" priority sizes="(min-width: 1024px) 28vw, 50vw" />
           <HeroTile src="/img/set-office.webp" alt="מחברת, ספל, עט ותיק ממותגים" href="/c/promo" label="מוצרי פרסום" price={from("pen")} sizes="(min-width: 1024px) 20vw, 50vw" />
-          <HeroTile src="/img/set-travel.webp" alt="תיק גב, מחברת ובקבוק ממותגים" href="/p/bottle" label="בקבוקים ומחברות" price={from("bottle")} sizes="(min-width: 1024px) 20vw, 50vw" />
+          <HeroTile src="/img/rollup.webp" alt="רול-אפ ממותג" href="/c/signs" label="שילוט ומדבקות" price={from("sticker")} sizes="(min-width: 1024px) 20vw, 50vw" />
         </div>
       </section>
 
