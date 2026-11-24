@@ -76,7 +76,25 @@ const edited = mergeProductEdit(bc0, { ...bc0, id: "hacked", name: "כרטיס �
 assert.equal(edited.id, "business-card"); // ids can't be changed by an edit
 assert.equal(edited.base[0][1], 2);
 assert.equal(edited.options[0].values[0].tiers?.[0][1], 0.5);
-assert.equal(edited.options[0].values.length, 3); // values not in the edit stay as they were
+assert.equal(edited.options.length, 1); // the edit defines the option list (options can be deleted)
+assert.deepEqual(edited.options[0].values[0].cm, [9, 5]); // code-defined extras survive the edit
+const sq = mergeProductEdit(bc0, structuredClone(bc0));
+assert.equal(sq.options[0].values[2].mockup, "card-sq");
+assert.equal(sq.options.find((o) => o.id === "sides")?.kind, undefined);
+const added = mergeProductEdit(bc0, { ...structuredClone(bc0), image: "/media/abc.webp", options: [...structuredClone(bc0.options),
+  { id: "foil", title: "רדיד זהב", values: [{ id: "none", title: "ללא" }, { id: "gold", title: "זהב", tiers: [[1, 0.3]] }, { id: "BAD ID", title: "x" }] },
+  { id: "../x", title: "evil", values: [] }] } as C.Product);
+assert.equal(added.options.length, bc0.options.length + 1); // invalid option id dropped
+assert.equal(added.options.at(-1)!.values.length, 2); // invalid value id dropped
+assert.equal(added.image, "/media/abc.webp");
+assert.equal(mergeProductEdit(bc0, { ...bc0, image: "https://evil.example/x.webp" }).image, bc0.image);
+const cat2 = { ...cat, products: cat.products.map((p) => (p.id === "business-card" ? added : p)) };
+assert.deepEqual(catalogErrors(cat2), []);
+assert.equal(C.priceLine(cat2, { productId: "business-card", quantity: 100, options: { foil: "gold" } }).unitPrice, 1.25);
+const fresh = C.newProduct("magnet", "מגנט", "promo", "card");
+assert.deepEqual(catalogErrors({ ...cat, products: [...cat.products, fresh] }), []);
+assert.match(catalogErrors({ ...cat, products: [...cat.products, { ...fresh, category: "nope" }] }).join(), /קטגוריה לא קיימת/);
+assert.match(catalogErrors({ ...cat, products: [...cat.products, { ...fresh, id: "mug" }] }).join(), /אותו מזהה/);
 console.log("catalog ok");
 
 assert.equal(printDpi([9, 5], 1063, 591), 300);

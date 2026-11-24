@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import Link from "next/link";
 import { Loader2, Check, AlertTriangle } from "lucide-react";
 import { catalogErrors, PRODUCTION_IDS, SHIPPING_IDS, type Catalog } from "@/lib/catalog";
 import { saveSettings } from "@/app/admin/catalog/actions";
@@ -25,8 +24,6 @@ export function SettingsEditor({ catalog }: { catalog: Catalog }) {
 
   return (
     <div className="space-y-6">
-      <nav className="text-sm text-neutral-500"><Link href="/admin/catalog" className="hover:text-white">מוצרים ומחירים</Link> / <span className="text-neutral-300">זמני ייצור ומשלוחים</span></nav>
-
       <GlowCard className="h-auto" inner="space-y-4">
         <h2 className="font-semibold">זמני ייצור</h2>
         <p className="text-xs text-neutral-500">האחוז מתווסף למחיר היחידה (מספר שלילי = הנחה). בכל מוצר בוחרים אילו זמני ייצור זמינים.</p>

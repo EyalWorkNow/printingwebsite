@@ -7,6 +7,7 @@ import { DEFAULT_CATALOG, type Catalog } from "./catalog";
 // Cached under the "catalog" tag — the admin save action calls updateTag("catalog").
 const DATA = path.join(process.cwd(), "data");
 const FILE = path.join(DATA, "catalog.json");
+export const MEDIA = path.join(DATA, "media"); // admin-uploaded photos
 export const CATALOG_TAG = "catalog";
 
 export async function getCatalog(): Promise<Catalog> {

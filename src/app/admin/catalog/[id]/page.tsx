@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { connection } from "next/server";
 import { notFound } from "next/navigation";
 import { readCatalog } from "@/lib/catalog-store";
+import { DEFAULT_CATALOG } from "@/lib/catalog";
 import { AdminHeader } from "@/components/admin-header";
 import { ProductEditor } from "@/components/admin/product-editor";
 
@@ -21,5 +22,5 @@ async function Body({ params }: { params: PageProps<"/admin/catalog/[id]">["para
   const { id } = await params;
   const cat = await readCatalog();
   if (!cat.products.some((p) => p.id === id)) notFound();
-  return <ProductEditor catalog={cat} id={id} />;
+  return <ProductEditor catalog={cat} id={id} builtin={DEFAULT_CATALOG.products.some((p) => p.id === id)} />;
 }

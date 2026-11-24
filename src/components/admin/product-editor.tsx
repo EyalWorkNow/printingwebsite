@@ -1,15 +1,19 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Plus, X, Loader2, Check, AlertTriangle, RotateCcw, ExternalLink } from "lucide-react";
-import { catalogErrors, priceLine, withVat, ils, PRODUCTION_IDS, type Catalog, type Product, type Tier } from "@/lib/catalog";
-import { saveProduct, resetProduct } from "@/app/admin/catalog/actions";
+import { Plus, X, Loader2, Check, AlertTriangle, RotateCcw, ExternalLink, Copy, Trash2 } from "lucide-react";
+import { catalogErrors, priceLine, withVat, ils, PRODUCTION_IDS, MOCKUPS, type Catalog, type Mockup, type Option, type Product, type Tier } from "@/lib/catalog";
+import { saveProduct, resetProduct, createProduct, deleteProduct } from "@/app/admin/catalog/actions";
+import { ImageField } from "./image-field";
 import { GlowCard } from "@/components/glow-card";
 
 const input = "w-full rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm outline-none focus:border-neutral-400";
 const num = (v: string) => (v.trim() === "" ? NaN : Number(v));
 const show = (n: number | undefined) => (n === undefined || Number.isNaN(n) ? "" : String(n));
+const newId = (p: string) => `${p}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`; // valid catalog id: lowercase, starts with a letter
+const KINDS: [string, string][] = [["", "בחירה רגילה (עם תוספת מחיר)"], ["color", "צבעים"], ["split", "חלוקת כמות (מידות)"]];
 
 function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
@@ -45,7 +49,8 @@ function Tiers({ value, onChange, signed, empty }: { value: Tier[]; onChange: (t
   );
 }
 
-export function ProductEditor({ catalog, id }: { catalog: Catalog; id: string }) {
+export function ProductEditor({ catalog, id, builtin }: { catalog: Catalog; id: string; builtin: boolean }) {
+  const router = useRouter();
   const [draft, setDraft] = useState<Product>(() => structuredClone(catalog.products.find((p) => p.id === id)!));
   const [presets, setPresets] = useState(draft.qty.presets.join(", "));
   const [details, setDetails] = useState(draft.details.join("\n"));
@@ -72,6 +77,18 @@ export function ProductEditor({ catalog, id }: { catalog: Catalog; id: string })
     });
   };
 
+  const duplicate = () => start(async () => {
+    const ids = new Set(catalog.products.map((x) => x.id));
+    let nid = `${id}-copy`, i = 2;
+    while (ids.has(nid)) nid = `${id}-copy-${i++}`;
+    const r = await createProduct({ id: nid, name: `${p.name} (עותק)`, category: p.category, mockup: p.mockup, from: id });
+    if (r.ok) router.push(`/admin/catalog/${nid}`); else setStatus({ ok: false, msg: "לא שוכפל", errors: r.errors });
+  });
+  const remove = () => {
+    if (!window.confirm(`למחוק את "${p.name}"? אי אפשר לבטל (עותק נשמר בהיסטוריה).`)) return;
+    start(async () => { const r = await deleteProduct(id); if (r.ok) router.push("/admin/catalog"); else setStatus({ ok: false, msg: "לא נמחק", errors: r.errors }); });
+  };
+
   return (
     <div className="grid items-start gap-6 lg:grid-cols-12">
       <div className="space-y-6 lg:col-span-8">
@@ -86,6 +103,11 @@ export function ProductEditor({ catalog, id }: { catalog: Catalog; id: string })
             <label className="space-y-1 text-sm"><span className="text-neutral-400">שם המוצר</span><input value={draft.name} onChange={(e) => up((d) => { d.name = e.target.value; })} className={input} /></label>
             <label className="space-y-1 text-sm"><span className="text-neutral-400">עלות הכנה חד-פעמית (₪ לפני מע״מ)</span><input type="number" min={0} step="0.01" value={show(draft.setup ?? 0)} onChange={(e) => up((d) => { d.setup = num(e.target.value); })} className={input} /></label>
             <label className="space-y-1 text-sm sm:col-span-2"><span className="text-neutral-400">תיאור קצר</span><input value={draft.desc} onChange={(e) => up((d) => { d.desc = e.target.value; })} className={input} /></label>
+            <label className="space-y-1 text-sm"><span className="text-neutral-400">קטגוריה</span>
+              <select value={draft.category} onChange={(e) => up((d) => { d.category = e.target.value; })} className={input}>{catalog.categories.map((c) => <option key={c.id} value={c.id} className="bg-neutral-900">{c.name}</option>)}</select></label>
+            <label className="space-y-1 text-sm"><span className="text-neutral-400">צורת ההדמיה (כשהלקוח מעלה קובץ)</span>
+              <select value={draft.mockup} onChange={(e) => up((d) => { d.mockup = e.target.value as Mockup; })} className={input}>{MOCKUPS.map(([m, t]) => <option key={m} value={m} className="bg-neutral-900">{t}</option>)}</select></label>
+            <div className="sm:col-span-2"><ImageField label="תמונת מוצר" value={draft.image} onChange={(url) => up((d) => { d.image = url; })} /></div>
           </div>
         </GlowCard>
 
@@ -100,6 +122,7 @@ export function ProductEditor({ catalog, id }: { catalog: Catalog; id: string })
             <div className="flex flex-wrap items-center gap-3">
               <input value={o.title} onChange={(e) => up((d) => { d.options[oi].title = e.target.value; })} aria-label="שם האפשרות" className={`${input} max-w-56 font-semibold`} />
               <span className="text-xs text-neutral-500">{o.kind === "split" ? "חלוקת כמות (מידות) — בלי תוספת מחיר" : o.kind === "color" ? "צבעים" : "תוספת ליחידה, לפי כמות. הערך הראשון הוא ברירת המחדל."}</span>
+              <button type="button" onClick={() => up((d) => { d.options.splice(oi, 1); })} className="ms-auto flex items-center gap-1 text-xs text-neutral-500 hover:text-red-400"><Trash2 className="h-3.5 w-3.5" /> מחיקת האפשרות</button>
             </div>
             <ul className="space-y-3">
               {o.values.map((v, vi) => (
@@ -109,14 +132,29 @@ export function ProductEditor({ catalog, id }: { catalog: Catalog; id: string })
                       {v.color && <input type="color" value={v.color} onChange={(e) => up((d) => { d.options[oi].values[vi].color = e.target.value; })} aria-label="צבע" className="h-8 w-8 shrink-0 cursor-pointer rounded border bg-transparent" />}
                       <input value={v.title} onChange={(e) => up((d) => { d.options[oi].values[vi].title = e.target.value; })} aria-label="שם הערך" className={input} />
                     </div>
-                    <Toggle on={v.active !== false} onChange={(a) => up((d) => { d.options[oi].values[vi].active = a; })} label={vi === 0 ? "פעיל · ברירת מחדל" : "פעיל"} />
+                    <div className="flex items-center justify-between gap-2">
+                      <Toggle on={v.active !== false} onChange={(a) => up((d) => { d.options[oi].values[vi].active = a; })} label={vi === 0 ? "פעיל · ברירת מחדל" : "פעיל"} />
+                      {o.values.length > 1 && <button type="button" onClick={() => up((d) => { d.options[oi].values.splice(vi, 1); })} aria-label={`מחיקת ${v.title}`} className="p-1 text-neutral-500 hover:text-red-400"><Trash2 className="h-3.5 w-3.5" /></button>}
+                    </div>
                   </div>
                   {o.kind !== "split" && <Tiers signed value={v.tiers ?? []} onChange={(t) => up((d) => { d.options[oi].values[vi].tiers = t; })} />}
                 </li>
               ))}
             </ul>
+            <button type="button" onClick={() => up((d) => { d.options[oi].values.push({ id: newId("v"), title: "", ...(o.kind === "color" ? { color: "#888888" } : {}) }); })}
+              className="flex items-center gap-1 text-sm text-neutral-400 hover:text-white"><Plus className="h-4 w-4" /> ערך חדש</button>
           </GlowCard>
         ))}
+
+        <GlowCard className="h-auto" inner="flex flex-wrap items-center gap-3 p-4">
+          <span className="text-sm text-neutral-400">הוספת אפשרות:</span>
+          {KINDS.filter(([k]) => k !== "split" || !draft.options.some((o) => o.kind === "split")).map(([k, t]) => (
+            <button key={k} type="button" className="flex items-center gap-1 rounded-lg border px-3 py-1.5 text-sm hover:border-neutral-500"
+              onClick={() => up((d) => { d.options.push({ id: newId("o"), title: k === "split" ? "מידה" : k === "color" ? "צבע" : "", ...(k ? { kind: k as Option["kind"] } : {}),
+                values: k === "split" ? ["S", "M", "L", "XL"].map((x) => ({ id: newId("v") + x.toLowerCase(), title: x })) : [{ id: newId("v"), title: k === "color" ? "שחור" : "", ...(k === "color" ? { color: "#171717" } : {}) }] }); })}>
+              <Plus className="h-3.5 w-3.5" /> {t}</button>
+          ))}
+        </GlowCard>
 
         <GlowCard className="h-auto" inner="space-y-4">
           <h2 className="font-semibold">כמויות וזמני ייצור</h2>
@@ -170,7 +208,10 @@ export function ProductEditor({ catalog, id }: { catalog: Catalog; id: string })
           )}
           <div className="flex items-center justify-between border-t pt-3 text-xs">
             <Link href={`/p/${id}`} target="_blank" className="flex items-center gap-1 text-neutral-400 hover:text-white"><ExternalLink className="h-3.5 w-3.5" /> צפייה באתר</Link>
-            <button type="button" onClick={reset} disabled={pending} className="flex items-center gap-1 text-neutral-500 hover:text-red-400"><RotateCcw className="h-3.5 w-3.5" /> שחזור למקור</button>
+            <button type="button" onClick={duplicate} disabled={pending} className="flex items-center gap-1 text-neutral-400 hover:text-white"><Copy className="h-3.5 w-3.5" /> שכפול</button>
+            {builtin
+              ? <button type="button" onClick={reset} disabled={pending} className="flex items-center gap-1 text-neutral-500 hover:text-red-400"><RotateCcw className="h-3.5 w-3.5" /> שחזור למקור</button>
+              : <button type="button" onClick={remove} disabled={pending} className="flex items-center gap-1 text-neutral-500 hover:text-red-400"><Trash2 className="h-3.5 w-3.5" /> מחיקה</button>}
           </div>
         </GlowCard>
       </aside>

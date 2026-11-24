@@ -326,9 +326,19 @@ export function catalogErrors(cat: Catalog): string[] {
   for (const id of PRODUCTION_IDS) { const x = cat.production[id]; if (!x?.label || !Number.isInteger(x.days) || x.days < 0 || !(x.pct > -1 && x.pct <= 5)) e.push(`זמן ייצור "${x?.label ?? id}": ימים ואחוז לא תקינים`); }
   for (const id of SHIPPING_IDS) { const x = cat.shipping[id]; if (!x?.label || !(x.price >= 0) || !Number.isInteger(x.days) || x.days < 0 || !(x.freeFrom >= 0)) e.push(`משלוח "${x?.label ?? id}": ערכים לא תקינים`); }
   if (!liveShipping(cat).length) e.push("חייבת להיות לפחות שיטת משלוח פעילה אחת");
+  const ids = cat.products.map((p) => p.id);
+  if (new Set(ids).size !== ids.length) e.push("יש שני מוצרים עם אותו מזהה");
+  for (const c of cat.categories) if (!isId(c.id) || !c.name?.trim()) e.push(`קטגוריה "${c.name || c.id}": חסר שם או מזהה לא תקין`);
   for (const p of cat.products) {
     const n = `"${p.name || p.id}"`;
     if (!p.name?.trim()) e.push(`${p.id}: חסר שם`);
+    if (!cat.categories.some((c) => c.id === p.category)) e.push(`${n}: קטגוריה לא קיימת`);
+    for (const o of p.options) {
+      if (!o.title?.trim()) e.push(`${n}: אפשרות בלי שם`);
+      if (!o.values.length) e.push(`${n} › ${o.title || "אפשרות"}: חייב להיות לפחות ערך אחד`);
+      if (new Set(o.values.map((v) => v.id)).size !== o.values.length) e.push(`${n} › ${o.title}: ערכים כפולים`);
+    }
+    if (new Set(p.options.map((o) => o.id)).size !== p.options.length) e.push(`${n}: אפשרויות כפולות`);
     const { min, max, step, presets } = p.qty;
     if (!(Number.isInteger(min) && min >= 1 && Number.isInteger(max) && max >= min && Number.isInteger(step) && step >= 1)) e.push(`${n}: מינימום/מקסימום/קפיצה לא תקינים`);
     if (!presets.length || presets.some((q, i) => !Number.isInteger(q) || q < min || q > max || (i && q <= presets[i - 1]))) e.push(`${n}: כמויות מוצעות חייבות להיות בעלייה ובין המינימום למקסימום`);
@@ -346,25 +356,44 @@ export function catalogErrors(cat: Catalog): string[] {
   return e;
 }
 
-/** Apply admin edits onto a product without letting ids/structure change (only editable fields are taken). */
+export const MOCKUPS: [Mockup, string][] = [["card", "כרטיס"], ["flyer", "דף / פלייר"], ["poster", "פוסטר / שלט"], ["sticker", "עיגול / מדבקה"], ["mug", "ספל"], ["shirt", "חולצה"], ["bag", "תיק"], ["bottle", "בקבוק"], ["pen", "עט"], ["cap", "כובע"]];
+const ID = /^[a-z0-9][a-z0-9-]{0,39}$/;
+export const isId = (s: unknown): s is string => typeof s === "string" && ID.test(s);
+export const isImage = (s: unknown): s is string => typeof s === "string" && /^\/(img|media)\/[\w.-]+\.webp$/.test(s);
+
+/** A blank (hidden) product to start editing from. */
+export function newProduct(id: string, name: string, category: string, mockup: Mockup): Product {
+  return { id, name, desc: "", category, mockup, active: false, base: [[1, 10]], options: [],
+    qty: { min: 1, max: 1000, step: 1, presets: [1, 10, 50, 100] }, production: ["standard"], details: [] };
+}
+
+/** Apply admin edits onto a product. Ids of existing options/values stay fixed; new ones must be valid ids;
+ *  option kinds and code-defined extras (rules, print sizes, mockup overrides) are kept from the current product. */
 export function mergeProductEdit(cur: Product, ed: Product): Product {
   const num = (x: unknown) => Number(x);
-  const tiers = (t: unknown): Tier[] => (Array.isArray(t) ? t.map((r) => [num(r?.[0]), num(r?.[1])] as Tier) : []);
+  const str = (x: unknown, max: number) => String(x ?? "").trim().slice(0, max);
+  const tiers = (t: unknown): Tier[] => (Array.isArray(t) ? t.slice(0, 20).map((r) => [num(r?.[0]), num(r?.[1])] as Tier) : []);
+  const edOpts = Array.isArray(ed.options) ? ed.options.slice(0, 12) : [];
   return {
-    ...cur, name: String(ed.name ?? "").slice(0, 80), desc: String(ed.desc ?? "").slice(0, 200), active: ed.active !== false,
+    ...cur, name: str(ed.name, 80), desc: str(ed.desc, 200), active: ed.active !== false,
+    category: str(ed.category, 40) || cur.category,
+    mockup: MOCKUPS.some(([m]) => m === ed.mockup) ? ed.mockup : cur.mockup,
+    image: ed.image === undefined || ed.image === null || ed.image === "" ? undefined : isImage(ed.image) ? ed.image : cur.image,
     base: tiers(ed.base), setup: num(ed.setup ?? 0),
-    qty: { min: num(ed.qty?.min), max: num(ed.qty?.max), step: num(ed.qty?.step), presets: (Array.isArray(ed.qty?.presets) ? ed.qty.presets : []).map(num) },
+    qty: { min: num(ed.qty?.min), max: num(ed.qty?.max), step: num(ed.qty?.step), presets: (Array.isArray(ed.qty?.presets) ? ed.qty.presets.slice(0, 12) : []).map(num) },
     production: PRODUCTION_IDS.filter((id) => ed.production?.includes(id)),
-    details: (Array.isArray(ed.details) ? ed.details : cur.details).map((d) => String(d).slice(0, 160)).filter(Boolean).slice(0, 8),
-    options: cur.options.map((o) => {
-      const eo = ed.options?.find((x) => x.id === o.id);
-      return { ...o, title: String(eo?.title ?? o.title).slice(0, 40), values: o.values.map((v) => {
-        const ev = eo?.values?.find((x) => x.id === v.id);
-        if (!ev) return v;
+    details: (Array.isArray(ed.details) ? ed.details : cur.details).map((d) => str(d, 160)).filter(Boolean).slice(0, 8),
+    options: edOpts.filter((eo) => isId(eo?.id)).map((eo) => {
+      const co = cur.options.find((o) => o.id === eo.id);
+      const kind = co ? co.kind : eo.kind === "color" || eo.kind === "split" ? eo.kind : undefined;
+      const values = (Array.isArray(eo.values) ? eo.values.slice(0, 30) : []).filter((ev) => isId(ev?.id)).map((ev) => {
+        const cv = co?.values.find((v) => v.id === ev.id);
         const t = tiers(ev.tiers);
-        return { ...v, title: String(ev.title ?? v.title).slice(0, 60), tiers: t.length ? t : undefined, active: ev.active !== false,
-          ...(v.color && /^#[0-9a-f]{6}$/i.test(String(ev.color)) ? { color: String(ev.color) } : {}) };
-      }) };
+        const color = /^#[0-9a-f]{6}$/i.test(String(ev.color)) ? String(ev.color) : cv?.color;
+        return { ...cv, id: ev.id, title: str(ev.title, 60), tiers: t.length && kind !== "split" ? t : undefined, active: ev.active !== false,
+          ...(kind === "color" ? { color: color ?? "#fafafa" } : {}) };
+      });
+      return { ...co, id: eo.id, title: str(eo.title, 40), kind, values };
     }),
   };
 }
