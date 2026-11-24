@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Upload, Eye, Truck, MessageCircle, ArrowLeft, Sparkles, Clock, BadgeCheck, Calculator } from "lucide-react";
+import { Upload, Eye, Truck, MessageCircle, ArrowLeft, Clock, BadgeCheck, Calculator } from "lucide-react";
 import { fromPrice, ils, liveProducts, PRODUCTION_IDS } from "@/lib/catalog";
 import { getCatalog } from "@/lib/catalog-store";
 import { Mockup } from "@/components/mockup";
@@ -28,7 +28,6 @@ export default async function Home() {
       {/* hero */}
       <section className="grid items-center gap-10 pt-2 lg:grid-cols-[1fr_1.15fr]">
         <div className="space-y-7 text-center lg:text-right">
-          <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs text-foreground/80"><Sparkles className="h-3.5 w-3.5 text-[#dd7bbb]" /> בית דפוס דיגיטלי · מחיר מיידי לכל שילוב</span>
           <h1 className="text-4xl leading-[1.1] font-bold text-balance md:text-6xl">המותג שלך,<br /><span className="bg-gradient-to-l from-[#b23d8a] via-[#9a6200] to-[#3f7020] bg-clip-text text-transparent dark:from-[#dd7bbb] dark:via-[#d79f1e] dark:to-[#5a922c]">מודפס על הכל.</span></h1>
           <p className="mx-auto max-w-xl text-muted-foreground md:text-lg lg:mx-0">חולצות, ספלים, מחברות, כרטיסי ביקור ושילוט — בוחרים, מעלים לוגו, רואים הדמיה ומזמינים עד הבית. או פשוט כותבים לנציג ה-AI מה צריך.</p>
           <div className="flex flex-wrap justify-center gap-3 lg:justify-start">

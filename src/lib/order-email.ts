@@ -10,6 +10,7 @@ import { read } from "./storage";
 
 const esc = (s: unknown) => String(s ?? "").replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 const GLOW = "linear-gradient(90deg,#dd7bbb,#d79f1e,#5a922c,#4c7894,#dd7bbb,#d79f1e)";
+export const ART_CID = "printrun@dfus"; // animated hero GIF (email-art.ts), attached inline
 const site = () => process.env.SITE_URL ?? "http://localhost:3007";
 
 function card(icon: string, title: string, body: string, delay: number, extra = "") {
@@ -22,6 +23,21 @@ function card(icon: string, title: string, body: string, delay: number, extra = 
 <div style="padding-top:6px;font-size:14px;color:#a3a3a3;line-height:21px">${body}</div>
 </td></tr></table></td></tr></table>`;
 }
+
+const hero = (alt: string) => `<tr><td style="padding-bottom:12px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate"><tr>
+<td class="glow" style="padding:1px;border-radius:18px;background-color:#262626;background-image:${GLOW};background-size:300% 100%">
+<img src="cid:${ART_CID}" width="598" alt="${esc(alt)}" style="display:block;width:100%;height:auto;border:0;border-radius:17px;background:#0a0a0a"></td></tr></table></td></tr>`;
+
+/** Order progress: done steps green, current step pulses. */
+const tracker = (o: Order) => {
+  const steps = ["התקבלה", "בדיקת קבצים", "ייצור", o.totals.shippingMethod === "pickup" ? "מוכן לאיסוף" : "במשלוח"];
+  return `<tr><td class="rise" style="padding:4px 0 16px;animation-delay:80ms"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>${steps.map((s, i) => `
+<td width="25%" align="center" valign="top" style="padding:0 2px">
+<div style="height:4px;border-radius:2px;background:${i === 0 ? "#5a922c" : "#262626"}"></div>
+<div style="padding-top:10px"><span${i === 1 ? ' class="dot"' : ""} style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${i === 0 ? "#5a922c" : i === 1 ? "#dd7bbb" : "#404040"}"></span></div>
+<div style="padding-top:6px;font-size:12px;line-height:16px;color:${i <= 1 ? "#fff" : "#737373"}">${i === 0 ? "✓ " : ""}${esc(s)}</div></td>`).join("")}
+</tr></table></td></tr>`;
+};
 
 function shell(title: string, preheader: string, badge: string, inner: string, cta: { href: string; label: string }, footer: string) {
   return `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -47,7 +63,7 @@ function shell(title: string, preheader: string, badge: string, inner: string, c
 <span class="dot" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#dd7bbb;vertical-align:middle;margin-left:6px"></span>${esc(badge)}</span></td>
 </tr></table></td></tr>
 
-${inner}<tr><td align="center" class="rise" style="padding:12px 0 8px;animation-delay:520ms">
+${hero(badge)}${inner}<tr><td align="center" class="rise" style="padding:12px 0 8px;animation-delay:520ms">
 <a href="${esc(cta.href)}" style="display:inline-block;background:#fff;color:#000;text-decoration:none;font-weight:600;font-size:15px;padding:13px 28px;border-radius:10px">${esc(cta.label)}</a></td></tr>
 <tr><td align="center" style="padding-top:18px;font-size:12px;color:#525252">${esc(footer)}</td></tr>
 </table></td></tr></table></body></html>`;
@@ -92,7 +108,7 @@ export function renderCustomerEmail(o: Order) {
   const steps = ["נבדוק את קבצי הגרפיקה ונחזור אליך לאישור", "תשלום טלפוני — נתקשר תוך יום עסקים", `ייצור ו${t.shippingMethod === "pickup" ? "איסוף" : "משלוח"} — יעד משוער ${eta(o)}`]
     .map((x, i) => `<div style="padding:3px 0"><span style="color:#737373">0${i + 1}</span>&nbsp; ${esc(x)}</div>`).join("");
   const html = shell(`ההזמנה ${o.id} התקבלה`, `תודה ${c.name}! ההזמנה ${o.id} התקבלה · ${ils(t.total)}`, "ההזמנה התקבלה",
-    `<tr><td style="padding-bottom:12px">${card("✦ " + esc(o.id), `<span style="font-size:26px;line-height:34px">תודה, ${esc(c.name)}!</span>`,
+    `${tracker(o)}<tr><td style="padding-bottom:12px">${card("✦ " + esc(o.id), `<span style="font-size:26px;line-height:34px">תודה, ${esc(c.name)}!</span>`,
       `קיבלנו את ההזמנה שלך: ${esc(summary(o))}`, 0, "padding:26px")}</td></tr>
 <tr><td style="padding-bottom:12px">${card("▣ ההזמנה שלך", `${o.items.length} פריטים`, itemsTable(o.items), 120)}</td></tr>
 ${two(card("➜ מה הלאה", "השלבים הבאים", steps, 220), card("₪ פירוט", "סיכום מחיר", priceTable(o), 320))}
@@ -115,11 +131,13 @@ export async function sendOrderEmail(o: Order) {
     budget -= content.length;
     attachments.push({ filename: `${o.id}-${i + 1}${path.extname(l.artwork)}`, content });
   }
+  const art = { filename: "print.gif", content: await (await import("./email-art")).printGif(), cid: ART_CID, contentDisposition: "inline" as const };
+  attachments.push(art);
   const transport = nodemailer.createTransport(url);
   const from = (name: string) => process.env.MAIL_FROM ?? `"${name}" <${decodeURIComponent(new URL(url).username)}>`;
   await transport.sendMail({ from: from("דפוס — הזמנות"), to, subject, html, text, attachments });
   if (o.customer.email) {
     const m = renderCustomerEmail(o);
-    await transport.sendMail({ from: from("דפוס"), to: o.customer.email, subject: m.subject, html: m.html, text: m.text });
+    await transport.sendMail({ from: from("דפוס"), to: o.customer.email, subject: m.subject, html: m.html, text: m.text, attachments: [art] });
   }
 }
