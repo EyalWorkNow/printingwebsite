@@ -1,10 +1,14 @@
 import { timingSafeEqual } from "node:crypto";
 
-// ponytail: single shared admin password via HTTP Basic; per-user accounts when there's more than one operator
+// ponytail: single shared admin login via HTTP Basic; per-user accounts when there's more than one operator
+const same = (x: string, y: string) => { const a = Buffer.from(x), b = Buffer.from(y); return a.length === b.length && timingSafeEqual(a, b); };
+
 export function isAdmin(authorization: string | null): boolean {
-  const pw = process.env.ADMIN_PASSWORD;
+  const user = process.env.ADMIN_USER ?? "admin", pw = process.env.ADMIN_PASSWORD;
   if (!pw || pw.length < 8 || !authorization?.startsWith("Basic ")) return false; // fail closed
-  const given = Buffer.from(authorization.slice(6), "base64").toString().split(":").slice(1).join(":");
-  const a = Buffer.from(given), b = Buffer.from(pw);
-  return a.length === b.length && timingSafeEqual(a, b);
+  const decoded = Buffer.from(authorization.slice(6), "base64").toString();
+  const i = decoded.indexOf(":");
+  if (i < 0) return false;
+  const okUser = same(decoded.slice(0, i), user), okPw = same(decoded.slice(i + 1), pw); // always compare both
+  return okUser && okPw;
 }
