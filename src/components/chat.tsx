@@ -1,5 +1,6 @@
 "use client";
 
+import { uploadArtwork } from "@/lib/upload-client";
 import { useEffect, useRef, useState } from "react";
 import { MessageCircle, X, Send, Paperclip, Loader2 } from "lucide-react";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
@@ -36,10 +37,9 @@ export function Chat() {
 
   async function attach(f?: File) {
     if (!f) return;
-    const fd = new FormData(); fd.append("file", f);
-    const r = await (await fetch("/api/upload", { method: "POST", body: fd })).json();
-    if (r.error) return setMsgs((m) => [...m, { role: "assistant", content: r.error }]);
-    send(`[קובץ גרפיקה צורף: ${r.id}] (${f.name})`);
+    try {
+      send(`[קובץ גרפיקה צורף: ${await uploadArtwork(f)}] (${f.name})`);
+    } catch (e) { setMsgs((m) => [...m, { role: "assistant", content: (e as Error).message || "ההעלאה נכשלה" }]); }
   }
 
   return (

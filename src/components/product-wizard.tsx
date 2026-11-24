@@ -1,5 +1,6 @@
 "use client";
 
+import { uploadArtwork } from "@/lib/upload-client";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
@@ -67,10 +68,7 @@ export function ProductWizard({ productId }: { productId: string }) {
       } catch { /* tainted/unsupported — cart shows the mockup without art */ }
     }
     try {
-      const fd = new FormData(); fd.append("file", f);
-      const r = await (await fetch("/api/upload", { method: "POST", body: fd })).json();
-      if (r.error) throw new Error(r.error);
-      setArt({ id: r.id, name: f.name, preview, thumb, px });
+      setArt({ id: await uploadArtwork(f), name: f.name, preview, thumb, px });
     } catch (e) { setArt({ name: f.name, preview, px, error: (e as Error).message }); }
   }
 

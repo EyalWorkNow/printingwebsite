@@ -1,14 +1,10 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { after } from "next/server";
 import { priceLine, totals, type Line, type LineInput, type Totals } from "./catalog";
 import { getCatalog } from "./catalog-store";
+import { keys, readJson, write, writeJson } from "./storage";
 
-// ponytail: JSON file + local disk, swap for a DB/object storage before multi-instance hosting
-const DATA = path.join(process.cwd(), "data");
-const ORDERS = path.join(DATA, "orders.json");
-export const UPLOADS = path.join(DATA, "uploads");
+// One JSON per order (orders/<id>.json) in storage — Blob on Vercel, data/ locally. Customer files in uploads/<id>.
 
 export type Customer = { name: string; phone: string; email?: string; address?: string; city?: string; notes?: string; business?: string; businessId?: string };
 export type Order = { id: string; createdAt: string; source: "site" | "chat"; items: Line[]; totals: Totals; payment: "phone"; customer: Customer; status: Status };
@@ -16,16 +12,16 @@ export type Order = { id: string; createdAt: string; source: "site" | "chat"; it
 export const STATUSES = ["התקבלה", "בהכנה", "נשלחה", "בוטלה"] as const;
 export type Status = (typeof STATUSES)[number];
 
-const ALLOWED = new Set(["image/png", "image/jpeg", "image/webp", "application/pdf", "image/svg+xml"]);
+export const UPLOAD_TYPES: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "application/pdf": "pdf", "image/svg+xml": "svg" };
 export const MAX_UPLOAD = 25 * 1024 * 1024;
+export const UPLOAD_KEY = /^uploads\/[0-9a-f-]{36}\.(png|jpg|webp|pdf|svg)$/;
 
 export async function saveUpload(file: File): Promise<string> {
-  if (!ALLOWED.has(file.type)) throw new Error("סוג קובץ לא נתמך (PDF/PNG/JPG/WEBP/SVG)");
+  const ext = UPLOAD_TYPES[file.type];
+  if (!ext) throw new Error("סוג קובץ לא נתמך (PDF/PNG/JPG/WEBP/SVG)");
   if (file.size > MAX_UPLOAD) throw new Error("הקובץ גדול מ-25MB");
-  const ext = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "application/pdf": "pdf", "image/svg+xml": "svg" }[file.type];
   const id = `${randomUUID()}.${ext}`;
-  await mkdir(UPLOADS, { recursive: true });
-  await writeFile(path.join(UPLOADS, id), Buffer.from(await file.arrayBuffer()));
+  await write(`uploads/${id}`, Buffer.from(await file.arrayBuffer()), { contentType: file.type, create: true });
   return id;
 }
 
@@ -44,8 +40,6 @@ export function validateCustomer(c: Record<string, unknown>, needsAddress = true
   return out;
 }
 
-let chain = Promise.resolve(); // ponytail: in-process write lock, single-instance only
-
 export async function createOrder(input: { items: LineInput[]; shipping?: string; customer: Record<string, unknown>; source: Order["source"] }): Promise<Order> {
   if (!Array.isArray(input.items) || !input.items.length) throw new Error("העגלה ריקה");
   if (input.items.length > 30) throw new Error("יותר מדי פריטים בהזמנה אחת");
@@ -53,33 +47,25 @@ export async function createOrder(input: { items: LineInput[]; shipping?: string
   const items = input.items.map((i) => priceLine(cat, i)); // prices are always recomputed server-side, from the live catalog
   const t = totals(cat, items, input.shipping);
   const order: Order = {
-    id: `DP-${Date.now().toString(36).toUpperCase()}`, createdAt: new Date().toISOString(), source: input.source, items, totals: t, payment: "phone",
+    id: `DP-${Date.now().toString(36).toUpperCase()}${randomUUID().slice(0, 2).toUpperCase()}`, createdAt: new Date().toISOString(), source: input.source, items, totals: t, payment: "phone",
     customer: validateCustomer(input.customer ?? {}, t.shippingMethod !== "pickup"), status: "התקבלה",
   };
-  await mutate((all) => { all.push(order); });
+  await writeJson(`orders/${order.id}.json`, order, { create: true });
   // runs after the response is sent; a mail failure never fails the order
   after(() => import("./order-email").then((m) => m.sendOrderEmail(order)).catch((e) => console.error("[order-email]", order.id, e)));
   return order;
 }
 
-export const listOrders = async (): Promise<Order[]> => JSON.parse(await readFile(ORDERS, "utf8").catch(() => "[]"));
-
-async function mutate(fn: (all: Order[]) => void) {
-  const job = chain.then(async () => {
-    await mkdir(DATA, { recursive: true });
-    const all = await listOrders();
-    fn(all);
-    await writeFile(ORDERS, JSON.stringify(all, null, 2));
-  });
-  chain = job.catch(() => {});
-  await job;
+// ponytail: reads every order file on each admin view; fine for hundreds of orders, add a DB index past a few thousand
+export async function listOrders(): Promise<Order[]> {
+  const all = await Promise.all((await keys("orders/")).filter((k) => k.endsWith(".json")).map((k) => readJson<Order>(k)));
+  return all.filter((o): o is Order => !!o).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
 
 export async function setStatus(id: string, status: string) {
   if (!STATUSES.includes(status as Status)) throw new Error("סטטוס לא חוקי");
-  await mutate((all) => {
-    const o = all.find((x) => x.id === id);
-    if (!o) throw new Error("הזמנה לא נמצאה");
-    o.status = status as Status;
-  });
+  if (!/^DP-[A-Z0-9]+$/.test(id)) throw new Error("הזמנה לא נמצאה");
+  const o = await readJson<Order>(`orders/${id}.json`);
+  if (!o) throw new Error("הזמנה לא נמצאה");
+  await writeJson(`orders/${id}.json`, { ...o, status });
 }

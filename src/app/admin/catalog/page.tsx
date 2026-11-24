@@ -54,7 +54,7 @@ async function List() {
           </ul>
         </section>
       ))}
-      <p className="text-xs text-muted-foreground">המחירים נשמרים בקובץ data/catalog.json, וכל שמירה שומרת עותק של הגרסה הקודמת ב-data/catalog-history.</p>
+      <p className="text-xs text-muted-foreground">המחירים נשמרים באחסון האתר, וכל שמירה שומרת עותק של הגרסה הקודמת (catalog-history).</p>
     </>
   );
 }

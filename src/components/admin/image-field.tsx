@@ -4,6 +4,18 @@ import { useState } from "react";
 import Image from "next/image";
 import { ImagePlus, Loader2, Trash2 } from "lucide-react";
 
+// Vercel caps request bodies at 4.5MB: big photos are scaled to ≤2400px JPEG in the browser first (the server re-encodes to 1600px WebP anyway).
+async function shrink(f: File): Promise<Blob> {
+  if (f.size <= 4 * 1024 * 1024) return f;
+  const bmp = await createImageBitmap(f).catch(() => null);
+  if (!bmp) return f;
+  const k = Math.min(1, 2400 / Math.max(bmp.width, bmp.height));
+  const c = document.createElement("canvas");
+  c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+  c.getContext("2d")!.drawImage(bmp, 0, 0, c.width, c.height);
+  return new Promise((ok) => c.toBlob((b) => ok(b ?? f), "image/jpeg", 0.9));
+}
+
 /** Upload → /api/admin/image (re-encoded WebP) → returns a /media/… url. */
 export function ImageField({ value, onChange, label = "תמונה" }: { value?: string; onChange: (url: string | undefined) => void; label?: string }) {
   const [busy, setBusy] = useState(false);
@@ -12,7 +24,7 @@ export function ImageField({ value, onChange, label = "תמונה" }: { value?: 
     if (!f) return;
     setBusy(true); setErr("");
     try {
-      const fd = new FormData(); fd.append("file", f);
+      const fd = new FormData(); fd.append("file", await shrink(f));
       const r = await (await fetch("/api/admin/image", { method: "POST", body: fd })).json();
       if (r.error) throw new Error(r.error);
       onChange(r.url);

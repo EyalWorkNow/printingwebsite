@@ -1,8 +1,8 @@
-import { stat } from "node:fs/promises";
 import path from "node:path";
 import nodemailer from "nodemailer";
 import { ils, addBusinessDays, type Line } from "./catalog";
-import { UPLOADS, type Order } from "./orders";
+import { type Order } from "./orders";
+import { read } from "./storage";
 
 // New-order email in the glowing-effect-demo look. Email clients don't run JS, so the
 // mouse-follow glow becomes a CSS-animated gradient border (Apple Mail / iOS / Outlook.com animate;
@@ -110,11 +110,10 @@ export async function sendOrderEmail(o: Order) {
   const attachments = [];
   for (const [i, l] of o.items.entries()) {
     if (!l.artwork) continue;
-    const file = path.join(UPLOADS, l.artwork);
-    const size = (await stat(file).catch(() => null))?.size;
-    if (size === undefined || size > budget) continue;
-    budget -= size;
-    attachments.push({ filename: `${o.id}-${i + 1}${path.extname(file)}`, path: file });
+    const content = await read(`uploads/${l.artwork}`);
+    if (!content || content.length > budget) continue;
+    budget -= content.length;
+    attachments.push({ filename: `${o.id}-${i + 1}${path.extname(l.artwork)}`, content });
   }
   const transport = nodemailer.createTransport(url);
   const from = (name: string) => process.env.MAIL_FROM ?? `"${name}" <${decodeURIComponent(new URL(url).username)}>`;

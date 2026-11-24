@@ -1,13 +1,10 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import path from "node:path";
 import { cacheTag } from "next/cache";
 import { DEFAULT_CATALOG, type Catalog } from "./catalog";
+import { read, write, writeJson } from "./storage";
 
-// The live catalog: data/catalog.json if the admin saved one, otherwise the built-in defaults.
+// The live catalog: catalog.json in storage (Blob or data/) if the admin saved one, otherwise the built-in defaults.
 // Cached under the "catalog" tag — the admin save action calls updateTag("catalog").
-const DATA = path.join(process.cwd(), "data");
-const FILE = path.join(DATA, "catalog.json");
-export const MEDIA = path.join(DATA, "media"); // admin-uploaded photos
+const FILE = "catalog.json";
 export const CATALOG_TAG = "catalog";
 
 export async function getCatalog(): Promise<Catalog> {
@@ -18,21 +15,20 @@ export async function getCatalog(): Promise<Catalog> {
 
 /** Uncached read — for the admin editor and for saving. */
 export async function readCatalog(): Promise<Catalog> {
-  const raw = await readFile(FILE, "utf8").catch(() => null);
+  const raw = await read(FILE);
   if (!raw) return DEFAULT_CATALOG;
-  const saved = JSON.parse(raw) as Catalog;
+  const saved = JSON.parse(raw.toString("utf8")) as Catalog;
   // products added to the code later still show up; saved edits win for products that exist in the file
   const ids = new Set(saved.products.map((p) => p.id));
   return { ...DEFAULT_CATALOG, ...saved, products: [...saved.products, ...DEFAULT_CATALOG.products.filter((p) => !ids.has(p.id))] };
 }
 
-let chain = Promise.resolve(); // ponytail: in-process write lock, single-instance only
+let chain = Promise.resolve(); // ponytail: in-process lock; two admins saving at the same second on different instances → last write wins
 export async function writeCatalog(next: Catalog) {
   const job = chain.then(async () => {
-    await mkdir(path.join(DATA, "catalog-history"), { recursive: true });
-    const prev = await readFile(FILE, "utf8").catch(() => null);
-    if (prev) await writeFile(path.join(DATA, "catalog-history", `${new Date().toISOString().replace(/[:.]/g, "-")}.json`), prev); // every save keeps the previous version
-    await writeFile(FILE, JSON.stringify(next, null, 2));
+    const prev = await read(FILE);
+    if (prev) await write(`catalog-history/${new Date().toISOString().replace(/[:.]/g, "-")}.json`, prev, { contentType: "application/json" }); // every save keeps the previous version
+    await writeJson(FILE, next);
   });
   chain = job.catch(() => {});
   await job;
