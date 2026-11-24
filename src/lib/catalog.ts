@@ -39,7 +39,7 @@ const SHIPPING: Record<ShippingId, Shipping> = {
 
 export type Category = { id: string; name: string; desc: string; image?: string };
 const CATEGORIES: Category[] = [
-  { id: "print", name: "מוצרי דפוס", desc: "כרטיסי ביקור, פליירים, ברושורים, נייר לוגו ומחברות", image: "/img/notebook.webp" },
+  { id: "print", name: "מוצרי דפוס", desc: "כרטיסי ביקור, פליירים, ברושורים, נייר לוגו ומחברות", image: "/img/brochure.webp" },
   { id: "signs", name: "מדבקות ושילוט", desc: "מדבקות בחיתוך, פוסטרים, רול-אפ והדפסה על קנבס", image: "/img/poster.webp" },
   { id: "apparel", name: "ביגוד ממותג", desc: "חולצות, קפוצ׳ונים, כובעים וחולצות ילדים עם הלוגו שלכם", image: "/img/set-apparel.webp" },
   { id: "promo", name: "מוצרי פרסום", desc: "ספלים, עטים, בקבוקים ותיקים ממותגים ללקוחות ולצוות", image: "/img/set-office.webp" },
@@ -64,7 +64,7 @@ const PRINT_DAYS: ProductionId[] = ["express", "fast", "standard", "saver"];
 
 const PRODUCTS: Product[] = [
   // ── print
-  { id: "business-card", name: "כרטיס ביקור", desc: "כרומו מט 300 גרם, הדפסה צבעונית חדה", category: "print", mockup: "card",
+  { id: "business-card", name: "כרטיס ביקור", desc: "כרומו מט 300 גרם, הדפסה צבעונית חדה", category: "print", mockup: "card", image: "/img/business-card.webp",
     base: [[100, 0.95], [300, 0.42], [500, 0.27], [1000, 0.16], [2000, 0.12], [5000, 0.08]],
     options: [
       { id: "size", title: "גודל", values: [{ id: "standard", title: "סטנדרטי 9×5 ס״מ", cm: [9, 5] }, { id: "wallet", title: "לארנק 8.5×5.5 ס״מ", cm: [8.5, 5.5] }, { id: "square", title: "ריבועי 6.5×6.5 ס״מ", cm: [6.5, 6.5], mockup: "card-sq" }] },
@@ -85,7 +85,7 @@ const PRODUCTS: Product[] = [
     ],
     qty: { min: 100, max: 20000, step: 50, presets: [100, 250, 500, 1000, 2500, 5000] }, production: PRINT_DAYS,
     details: ["פלייר ללא קיפול", "הדפסה בצבע מלא על כרומו מט", "מתאים לחלוקה, תיבות דואר ודוכנים"] },
-  { id: "brochure", name: "ברושור מקופל", desc: "A4 בקיפול לשלושה, כרומו 170 גרם", category: "print", mockup: "flyer", setup: 30,
+  { id: "brochure", name: "ברושור מקופל", desc: "A4 בקיפול לשלושה, כרומו 170 גרם", category: "print", mockup: "flyer", setup: 30, image: "/img/brochure.webp",
     base: [[100, 1.6], [250, 1.05], [500, 0.75], [1000, 0.55], [2500, 0.42]],
     options: [{ id: "fold", title: "קיפול", values: [{ id: "tri", title: "קיפול לשלושה (Z / C)", cm: [21, 29.7] }, { id: "half", title: "קיפול לחצי", cm: [21, 29.7] }] }, { id: "paper", title: "נייר", values: [{ id: "170", title: "כרומו מט 170 גרם" }, { id: "250", title: "כרומו מט 250 גרם", tiers: [[1, 0.12]] }] }],
     qty: { min: 100, max: 10000, step: 50, presets: [100, 250, 500, 1000, 2500] }, production: ["fast", "standard", "saver"],
@@ -121,7 +121,7 @@ const PRODUCTS: Product[] = [
     options: [{ id: "size", title: "גודל", values: [{ id: "85", title: "85×200 ס״מ", cm: [85, 200] }, { id: "100", title: "100×200 ס״מ", tiers: [[1, 40]], cm: [100, 200] }] }],
     qty: { min: 1, max: 50, step: 1, presets: [1, 3, 10] }, production: ["express", "fast", "standard"],
     details: ["הדפסה על בד/PVC ללא השתקפות", "מתקן אלומיניום ותיק נשיאה כלולים", "מוכן לתערוכה תוך דקה"] },
-  { id: "canvas", name: "הדפסה על קנבס", desc: "קנבס כותנה על מסגרת עץ 2 ס״מ", category: "signs", mockup: "poster",
+  { id: "canvas", name: "הדפסה על קנבס", desc: "קנבס כותנה על מסגרת עץ 2 ס״מ", category: "signs", mockup: "poster", image: "/img/canvas.webp",
     base: [[1, 95], [5, 82], [10, 70]],
     options: [{ id: "size", title: "גודל", values: [{ id: "30x40", title: "30×40 ס״מ", cm: [30, 40] }, { id: "40x60", title: "40×60 ס״מ", tiers: [[1, 50]], cm: [40, 60] }, { id: "60x90", title: "60×90 ס״מ", tiers: [[1, 140]], cm: [60, 90] }] }],
     qty: { min: 1, max: 100, step: 1, presets: [1, 5, 10] }, production: ["fast", "standard"],
