@@ -14,7 +14,8 @@ export function PhotoMockup({ m, zone, tint, art, aspect, place, onPlace }: {
   const wrap = useRef<HTMLDivElement>(null), canvas = useRef<HTMLCanvasElement>(null);
   const [size, setSize] = useState(0);
   const [imgs, setImgs] = useState<{ photo: HTMLImageElement; mask?: HTMLImageElement; shade: HTMLImageElement }>();
-  const [artImg, setArtImg] = useState<HTMLImageElement>();
+  const [loaded, setLoaded] = useState<{ src: string; img: HTMLImageElement }>();
+  const artImg = art && loaded?.src === art ? loaded.img : undefined;
 
   useEffect(() => {
     const ro = new ResizeObserver(([e]) => setSize(Math.round(e.contentRect.width)));
@@ -28,7 +29,7 @@ export function PhotoMockup({ m, zone, tint, art, aspect, place, onPlace }: {
   }, [m]);
   useEffect(() => {
     let live = true;
-    if (art) load(art).then((i) => live && setArtImg(i)).catch(() => live && setArtImg(undefined)); else setArtImg(undefined);
+    if (art) load(art).then((img) => live && setLoaded({ src: art, img })).catch(() => {});
     return () => { live = false; };
   }, [art]);
 
@@ -68,7 +69,7 @@ export function PhotoMockup({ m, zone, tint, art, aspect, place, onPlace }: {
   // drag / resize in cm
   const drag = useRef<{ mode: "move" | "size"; x0: number; y0: number; p0: Placement }>(undefined);
   const set = (p: Placement) => onPlace(clampPlacement(zone, aspect, p));
-  const down = (mode: "move" | "size") => (e: React.PointerEvent) => {
+  const down = (mode: "move" | "size", e: React.PointerEvent) => {
     if (!place) return;
     e.stopPropagation(); (e.target as HTMLElement).setPointerCapture(e.pointerId);
     drag.current = { mode, x0: e.clientX, y0: e.clientY, p0: place };
@@ -96,10 +97,10 @@ export function PhotoMockup({ m, zone, tint, art, aspect, place, onPlace }: {
       )}
       {size > 0 && art && place && (
         <div role="slider" tabIndex={0} aria-label="מיקום הגרפיקה — חצים להזזה, + ו- לשינוי גודל" aria-valuetext={`רוחב ${place.w.toFixed(1)} ס״מ`} aria-valuenow={Math.round(place.w * 10) / 10} aria-valuemin={2} aria-valuemax={Math.round(maxWidth(zone, aspect) * 10) / 10}
-          onPointerDown={down("move")} onKeyDown={key}
+          onPointerDown={(e) => down("move", e)} onKeyDown={key}
           className="absolute cursor-move outline-none ring-1 ring-sky-500/80 focus-visible:ring-2"
           style={{ left: zx + place.x * k, top: zy + place.y * k, width: place.w * k, height: place.w * aspect * k }}>
-          <span onPointerDown={down("size")} className="absolute -right-3 -bottom-3 flex h-6 w-6 cursor-nwse-resize items-center justify-center" aria-hidden>
+          <span onPointerDown={(e) => down("size", e)} className="absolute -right-3 -bottom-3 flex h-6 w-6 cursor-nwse-resize items-center justify-center" aria-hidden>
             <span className="h-3 w-3 rounded-sm border-2 border-sky-600 bg-white" />
           </span>
         </div>
