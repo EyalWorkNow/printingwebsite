@@ -12,6 +12,8 @@ import {
 import { cart, useToday } from "@/lib/cart";
 import { useCatalog } from "./catalog-provider";
 import { Mockup } from "./mockup";
+import { PhotoMockup } from "./photo-mockup";
+import { PHOTO_MOCKUPS, clampPlacement, defaultPlacement, describePlacement, maxWidth, type Placement } from "@/lib/photo-mockups";
 import { GlowCard } from "./glow-card";
 
 const STEPS = ["מאפיינים", "כמות", "זמן ייצור", "גרפיקה"];
@@ -30,7 +32,7 @@ export function ProductWizard({ productId }: { productId: string }) {
   const [qty, setQty] = useState(p.qty.presets[Math.min(1, p.qty.presets.length - 1)]);
   const [split, setSplit] = useState<Record<string, number>>(() => (splitOpt ? { [(splitOpt.values.filter((v) => v.active !== false)[1] ?? splitOpt.values[0]).id]: p.qty.presets[0] } : {}));
   const [production, setProduction] = useState<ProductionId>(p.production.includes("standard") ? "standard" : p.production[0]);
-  const [art, setArt] = useState<{ id?: string; name: string; preview?: string; thumb?: string; px?: [number, number]; busy?: boolean; error?: string }>();
+  const [art, setArt] = useState<{ id?: string; name: string; preview?: string; thumb?: string; px?: [number, number]; aspect?: number; busy?: boolean; error?: string }>();
   const [zoom, setZoom] = useState(1);
   const [fit, setFit] = useState(false);
   const [added, setAdded] = useState(false);
@@ -45,7 +47,17 @@ export function ProductWizard({ productId }: { productId: string }) {
   const ok = typeof line !== "string";
   const quote = (patch: Partial<typeof input0>): Line | undefined => { try { return priceLine(cat, { ...input0, ...patch }); } catch { return undefined; } };
 
-  const cm = printCmFor(p, sel);
+  // real-photo mockup (pilot products): the customer sets the print size in cm, DPI follows that size
+  const pm = PHOTO_MOCKUPS[p.id];
+  const zoneId = pm?.zoneFor(sel);
+  const zone = pm && zoneId ? pm.zones[zoneId] : undefined;
+  const aspect = art?.aspect ?? 1;
+  const [placed, setPlaced] = useState<{ key: string; p: Placement }>();
+  const placeKey = `${art?.preview}|${zoneId}`;
+  const place = zone && art?.preview ? (placed?.key === placeKey ? placed.p : defaultPlacement(zone, aspect)) : undefined;
+  const setPlace = (np: Placement) => zone && setPlaced({ key: placeKey, p: clampPlacement(zone, aspect, np) });
+
+  const cm: [number, number] | undefined = place ? [place.w, place.w * aspect] : printCmFor(p, sel);
   const dpi = art?.px && cm && printDpi(cm, art.px[0], art.px[1]);
   const level = dpi ? dpiLevel(dpi) : undefined;
 
@@ -54,11 +66,12 @@ export function ProductWizard({ productId }: { productId: string }) {
     if (art?.preview) URL.revokeObjectURL(art.preview);
     const preview = f.type.startsWith("image/") ? URL.createObjectURL(f) : undefined;
     setArt({ name: f.name, preview, busy: true }); setZoom(1); setFit(false); setView("mock");
-    let px: [number, number] | undefined, thumb: string | undefined;
+    let px: [number, number] | undefined, thumb: string | undefined, aspect: number | undefined;
     if (preview) {
       const img = new window.Image();
       img.src = preview;
       await img.decode().catch(() => {});
+      if (img.naturalWidth) aspect = img.naturalHeight / img.naturalWidth;
       if (f.type !== "image/svg+xml" && img.naturalWidth) px = [img.naturalWidth, img.naturalHeight]; // SVG is vector — DPI never limits it
       try { // small thumbnail for the cart (the full file stays on the server)
         const c = document.createElement("canvas"), k = Math.min(1, 240 / Math.max(img.naturalWidth || 240, img.naturalHeight || 240));
@@ -68,13 +81,13 @@ export function ProductWizard({ productId }: { productId: string }) {
       } catch { /* tainted/unsupported — cart shows the mockup without art */ }
     }
     try {
-      setArt({ id: await uploadArtwork(f), name: f.name, preview, thumb, px });
-    } catch (e) { setArt({ name: f.name, preview, px, error: (e as Error).message }); }
+      setArt({ id: await uploadArtwork(f), name: f.name, preview, thumb, px, aspect });
+    } catch (e) { setArt({ name: f.name, preview, px, aspect, error: (e as Error).message }); }
   }
 
   function addToCart() {
     if (!ok) return;
-    const placement = art?.preview && (zoom !== 1 || fit) ? `מיקום: ${fit ? "התאמה מלאה" : "מילוי"}, זום ${Math.round(zoom * 100)}%` : undefined;
+    const placement = zone && place ? describePlacement(zone, aspect, place) : art?.preview && (zoom !== 1 || fit) ? `מיקום: ${fit ? "התאמה מלאה" : "מילוי"}, זום ${Math.round(zoom * 100)}%` : undefined;
     cart.add({ ...input0, quantity: line.quantity, artwork: art?.id, placement, thumb: art?.thumb, fileName: art?.id ? art.name : undefined });
     setAdded(true);
   }
@@ -97,9 +110,26 @@ export function ProductWizard({ productId }: { productId: string }) {
           {view === "photo" && p.image ? (
             <div className="relative aspect-square w-full max-w-md overflow-hidden rounded-xl"><Image src={p.image} alt={p.name} fill priority sizes="(min-width: 1024px) 40vw, 90vw" className="object-cover" /></div>
           ) : (
-            <div className="aspect-square w-full max-w-md"><Mockup kind={mockupFor(p, sel)} tint={tintFor(p, sel)} src={art?.preview} zoom={zoom} fit={fit} /></div>
+            pm && zone ? <div className="w-full max-w-md"><PhotoMockup m={pm} zone={zone} tint={tintFor(p, sel)} art={art?.preview} aspect={aspect} place={place} onPlace={setPlace} /></div>
+            : <div className="aspect-square w-full max-w-md"><Mockup kind={mockupFor(p, sel)} tint={tintFor(p, sel)} src={art?.preview} zoom={zoom} fit={fit} /></div>
           )}
-          {view === "mock" && art?.preview && (
+          {view === "mock" && zone && place && (
+            <div className="w-full max-w-md space-y-2 text-xs text-muted-foreground">
+              <div className="flex items-center gap-3">
+                <span className="shrink-0">רוחב</span>
+                <input type="range" min={2} max={Math.floor(maxWidth(zone, aspect) * 10) / 10} step={0.1} value={place.w} onChange={(e) => setPlace({ ...place, w: Number(e.target.value), x: place.x + (place.w - Number(e.target.value)) / 2 })} aria-label="רוחב ההדפסה בס״מ" className="h-6 flex-1 accent-foreground" />
+                <span className="w-16 text-left tabular-nums" dir="ltr">{place.w.toFixed(1)} cm</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={() => setPlace({ ...place, x: (zone.cm[0] - place.w) / 2 })} className="rounded-full border px-2.5 py-1 hover:text-foreground">מרכוז</button>
+                <button type="button" onClick={() => setPlaced({ key: placeKey, p: { w: maxWidth(zone, aspect), x: (zone.cm[0] - maxWidth(zone, aspect)) / 2, y: 0 } })} className="rounded-full border px-2.5 py-1 hover:text-foreground">הכי גדול</button>
+                <button type="button" onClick={() => setPlaced(undefined)} className="rounded-full border px-2.5 py-1 hover:text-foreground">איפוס</button>
+              </div>
+              <p className="font-medium text-foreground" role="status">{describePlacement(zone, aspect, place)}</p>
+              <p>גוררים את הגרפיקה כדי להזיז, מושכים את הפינה לשינוי גודל.</p>
+            </div>
+          )}
+          {view === "mock" && !zone && art?.preview && (
             <div className="flex w-full max-w-sm items-center gap-3 text-xs text-muted-foreground">
               <ZoomIn className="h-4 w-4 shrink-0" />
               <input type="range" min={0.5} max={2} step={0.05} value={zoom} onChange={(e) => setZoom(Number(e.target.value))} aria-label="זום על הגרפיקה" className="h-6 flex-1 accent-foreground" />
@@ -223,7 +253,7 @@ export function ProductWizard({ productId }: { productId: string }) {
               <details className="rounded-xl border p-4 text-sm">
                 <summary className="cursor-pointer font-medium">הנחיות להכנת קובץ</summary>
                 <ul className="mt-3 list-disc space-y-1.5 pr-5 text-muted-foreground">
-                  {cm && <li>גודל ההדפסה: {cm[0]}×{cm[1]} ס״מ. הוסיפו 3 מ״מ רקע מכל צד (bleed).</li>}
+                  {cm && <li>גודל ההדפסה: {+cm[0].toFixed(1)}×{+cm[1].toFixed(1)} ס״מ. הוסיפו 3 מ״מ רקע מכל צד (bleed).</li>}
                   <li>מומלץ PDF וקטורי. תמונות ב-300 DPI לפחות בגודל ההדפסה.</li>
                   <li>טקסט ולוגו — לפחות 4 מ״מ מקו החיתוך (אזור בטוח). חיתוך עשוי לסטות ב-1 מ״מ.</li>
                   <li>טקסט בגודל 7pt לפחות, קווים בעובי 0.25pt לפחות.</li>
