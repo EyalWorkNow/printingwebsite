@@ -1,7 +1,7 @@
 import { stat } from "node:fs/promises";
 import path from "node:path";
 import nodemailer from "nodemailer";
-import { ils } from "./catalog";
+import { ils, SHIPPING, addBusinessDays, type Line } from "./catalog";
 import { UPLOADS, type Order } from "./orders";
 
 // New-order email in the glowing-effect-demo look. Email clients don't run JS, so the
@@ -55,47 +55,50 @@ ${inner}<tr><td align="center" class="rise" style="padding:12px 0 8px;animation-
 
 const row = (k: string, v: string, strong = false) =>
   `<tr><td style="padding:4px 0;color:#a3a3a3;font-size:14px">${k}</td><td align="left" style="padding:4px 0;font-size:${strong ? 18 : 14}px;color:#fff;${strong ? "font-weight:700" : ""}">${v}</td></tr>`;
-const priceTable = (q: Order["quote"]) => `<table role="presentation" width="100%">
-${row("מחיר ליחידה", esc(ils(q.unitPrice)))}${q.setup ? row("הכנה לדפוס", esc(ils(q.setup))) : ""}${row("משלוח", q.shipping ? esc(ils(q.shipping)) : "חינם")}${row("מע״מ", esc(ils(q.vat)))}${row("סה״כ", esc(ils(q.total)), true)}</table>`;
+const priceTable = (o: Order) => { const t = o.totals; return `<table role="presentation" width="100%">
+${row("מוצרים", esc(ils(t.subtotal)))}${row(esc(SHIPPING[t.shippingMethod].label), t.shipping ? esc(ils(t.shipping)) : "חינם")}${row("מע״מ", esc(ils(t.vat)))}${row("סה״כ", esc(ils(t.total)), true)}</table>`; };
 const two = (a: string, b: string) => `<tr><td><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
 <td class="col" width="50%" valign="top" style="padding:0 0 12px 6px">${a}</td><td class="col" width="50%" valign="top" style="padding:0 6px 12px 0">${b}</td></tr></table></td></tr>`;
+const itemsTable = (items: Line[]) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0">${items.map((l) => `<tr><td style="padding:10px 0;border-bottom:1px solid #262626;vertical-align:top">
+<div style="font-size:15px;color:#fff;font-weight:600">${esc(l.quantity.toLocaleString("he-IL"))} × ${esc(l.productName)}</div>
+<div style="font-size:13px;color:#a3a3a3;line-height:20px">${l.labels.map(([k, v]) => `${esc(k)}: ${esc(v)}`).join(" · ")}<br>ייצור ${esc(l.productionLabel)} (${l.productionDays} ימי עסקים) · ${l.artwork ? "גרפיקה צורפה ✓" : `<span style="color:#fbbf24">חסרה גרפיקה</span>`}${l.placement ? ` · ${esc(l.placement)}` : ""}</div></td>
+<td align="left" style="padding:10px 0;border-bottom:1px solid #262626;vertical-align:top;font-size:15px;color:#fff;white-space:nowrap">${esc(ils(l.subtotal))}</td></tr>`).join("")}</table>`;
+const summary = (o: Order) => o.items.map((l) => `${l.quantity} × ${l.productName}`).join(", ");
+const eta = (o: Order) => addBusinessDays(new Date(o.createdAt), Math.max(...o.items.map((l) => l.productionDays)) + SHIPPING[o.totals.shippingMethod].days)
+  .toLocaleDateString("he-IL", { weekday: "long", day: "numeric", month: "long", timeZone: "Asia/Jerusalem" });
+const where = (o: Order) => o.totals.shippingMethod === "pickup" ? "איסוף עצמי — נתאם בטלפון" : `${esc(o.customer.address)}, ${esc(o.customer.city)}`;
 
 export function renderOrderEmail(o: Order) {
-  const q = o.quote, c = o.customer;
+  const t = o.totals, c = o.customer;
   const admin = `${site()}/admin?q=${encodeURIComponent(o.id)}`;
+  const missing = o.items.filter((l) => !l.artwork).length;
 
-  const html = shell(`הזמנה חדשה ${o.id}`, `${c.name} · ${q.quantity} × ${q.productName} · ${ils(q.total)}`, "הזמנה חדשה", `<tr><td style="padding-bottom:12px">${card("✦ " + esc(o.id),
-  `<span style="font-size:28px;line-height:36px">${esc(ils(q.total))}</span>`,
-  `${esc(q.quantity.toLocaleString("he-IL"))} × <b style="color:#fff">${esc(q.productName)}</b> · ${esc(q.size)}<br>${o.source === "chat" ? "התקבלה בצ׳אט ה-AI" : "התקבלה באתר"} · ${esc(new Date(o.createdAt).toLocaleString("he-IL", { dateStyle: "short", timeStyle: "short", timeZone: "Asia/Jerusalem" }))}`, 0, "padding:26px")}</td></tr>
+  const html = shell(`הזמנה חדשה ${o.id}`, `${c.name} · ${summary(o)} · ${ils(t.total)}`, "הזמנה חדשה", `<tr><td style="padding-bottom:12px">${card("✦ " + esc(o.id),
+  `<span style="font-size:28px;line-height:36px">${esc(ils(t.total))}</span>`,
+  `${o.items.length} פריטים · ${esc(SHIPPING[t.shippingMethod].label)} · יעד משוער ${esc(eta(o))}<br>${o.source === "chat" ? "התקבלה בצ׳אט ה-AI" : "התקבלה באתר"} · ${esc(new Date(o.createdAt).toLocaleString("he-IL", { dateStyle: "short", timeStyle: "short", timeZone: "Asia/Jerusalem" }))}`, 0, "padding:26px")}</td></tr>
+<tr><td style="padding-bottom:12px">${card("▣ פריטים", missing ? `<span style="color:#fbbf24">חסרה גרפיקה ${missing === 1 ? "בפריט אחד" : `ב-${missing} פריטים`}</span>` : "כל הקבצים צורפו ✓", itemsTable(o.items), 120)}</td></tr>
+${two(card("☺ לקוח", esc(c.name), `<a href="tel:${esc(c.phone)}" style="color:#d4d4d4;text-decoration:none" dir="ltr">${esc(c.phone)}</a>${c.email ? `<br><a href="mailto:${esc(c.email)}" style="color:#d4d4d4">${esc(c.email)}</a>` : ""}${c.business ? `<br>${esc(c.business)}${c.businessId ? ` · ${esc(c.businessId)}` : ""}` : ""}`, 220),
+  card("➜ " + esc(SHIPPING[t.shippingMethod].label), t.shippingMethod === "pickup" ? "איסוף עצמי" : esc(c.city), `${where(o)}${c.notes ? `<br>הערות: ${esc(c.notes)}` : ""}<br>תשלום: טלפוני`, 320))}
+<tr><td style="padding-bottom:12px">${card("₪ פירוט", "סיכום מחיר", priceTable(o), 420)}</td></tr>`, { href: admin, label: "פתיחה בממשק הניהול" }, "התראה אוטומטית מאתר דפוס");
 
-<tr><td><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-<td class="col" width="50%" valign="top" style="padding:0 0 12px 6px">${card("☺ לקוח", esc(c.name),
-  `<a href="tel:${esc(c.phone)}" style="color:#d4d4d4;text-decoration:none" dir="ltr">${esc(c.phone)}</a>${c.email ? `<br><a href="mailto:${esc(c.email)}" style="color:#d4d4d4">${esc(c.email)}</a>` : ""}`, 120)}</td>
-<td class="col" width="50%" valign="top" style="padding:0 6px 12px 0">${card("➜ משלוח עד הבית", esc(c.city), `${esc(c.address)}${c.notes ? `<br>הערות: ${esc(c.notes)}` : ""}`, 220)}</td>
-</tr><tr>
-<td class="col" width="50%" valign="top" style="padding:0 0 12px 6px">${card("▣ גרפיקה", o.artwork ? "צורפה ✓" : "טרם הועלתה",
-  o.artwork ? "הקובץ מצורף למייל וזמין בממשק הניהול." : `<span style="color:#fbbf24">יש לבקש מהלקוח קובץ גרפיקה.</span>`, 320)}</td>
-<td class="col" width="50%" valign="top" style="padding:0 6px 12px 0">${card("₪ פירוט", "סיכום מחיר", priceTable(q), 420)}</td>
-</tr></table></td></tr>
-
-`, { href: admin, label: "פתיחה בממשק הניהול" }, "התראה אוטומטית מאתר דפוס");
-
-  const text = [`הזמנה חדשה ${o.id}`, `${q.quantity} × ${q.productName} (${q.size}) — ${ils(q.total)}`, `לקוח: ${c.name}, ${c.phone}${c.email ? ", " + c.email : ""}`, `משלוח: ${c.address}, ${c.city}`, `גרפיקה: ${o.artwork ? "מצורפת" : "טרם הועלתה"}`, admin].join("\n");
-  return { subject: `הזמנה חדשה ${o.id} · ${c.name} · ${ils(q.total)}`, html, text };
+  const text = [`הזמנה חדשה ${o.id} — ${ils(t.total)}`, ...o.items.map((l) => `• ${l.quantity} × ${l.productName} (${l.labels.map(([k, v]) => `${k}: ${v}`).join(", ")}) — ${ils(l.subtotal)}${l.artwork ? "" : " [חסרה גרפיקה]"}`),
+    `לקוח: ${c.name}, ${c.phone}${c.email ? ", " + c.email : ""}`, `משלוח: ${SHIPPING[t.shippingMethod].label}${t.shippingMethod === "pickup" ? "" : ` — ${c.address}, ${c.city}`}`, admin].join("\n");
+  return { subject: `הזמנה חדשה ${o.id} · ${c.name} · ${ils(t.total)}`, html, text };
 }
 
 /** Confirmation to the customer (only when they left an email). */
 export function renderCustomerEmail(o: Order) {
-  const q = o.quote, c = o.customer;
-  const steps = ["נבדוק את קובץ הגרפיקה ונחזור אליך לאישור", "תשלום בטלפון לאחר אישור הגרפיקה", "ייצור ומשלוח עד הבית תוך 3–5 ימי עסקים"]
-    .map((t, i) => `<div style="padding:3px 0"><span style="color:#737373">0${i + 1}</span>&nbsp; ${t}</div>`).join("");
-  const html = shell(`ההזמנה ${o.id} התקבלה`, `תודה ${c.name}! ההזמנה ${o.id} התקבלה · ${ils(q.total)}`, "ההזמנה התקבלה",
+  const t = o.totals, c = o.customer;
+  const steps = ["נבדוק את קבצי הגרפיקה ונחזור אליך לאישור", "תשלום טלפוני — נתקשר תוך יום עסקים", `ייצור ו${t.shippingMethod === "pickup" ? "איסוף" : "משלוח"} — יעד משוער ${eta(o)}`]
+    .map((x, i) => `<div style="padding:3px 0"><span style="color:#737373">0${i + 1}</span>&nbsp; ${esc(x)}</div>`).join("");
+  const html = shell(`ההזמנה ${o.id} התקבלה`, `תודה ${c.name}! ההזמנה ${o.id} התקבלה · ${ils(t.total)}`, "ההזמנה התקבלה",
     `<tr><td style="padding-bottom:12px">${card("✦ " + esc(o.id), `<span style="font-size:26px;line-height:34px">תודה, ${esc(c.name)}!</span>`,
-      `קיבלנו את ההזמנה שלך: ${esc(q.quantity.toLocaleString("he-IL"))} × <b style="color:#fff">${esc(q.productName)}</b> · ${esc(q.size)}`, 0, "padding:26px")}</td></tr>
-${two(card("➜ מה הלאה", "השלבים הבאים", steps, 120), card("₪ פירוט", "סיכום מחיר", priceTable(q), 220))}
-${two(card("⌂ משלוח", esc(c.city), esc(c.address), 320), card("▣ גרפיקה", o.artwork ? "התקבלה ✓" : "עדיין חסרה", o.artwork ? "נבדוק אותה לפני ההדפסה." : "אפשר לשלוח לנו בצ׳אט באתר.", 420))}`,
+      `קיבלנו את ההזמנה שלך: ${esc(summary(o))}`, 0, "padding:26px")}</td></tr>
+<tr><td style="padding-bottom:12px">${card("▣ ההזמנה שלך", `${o.items.length} פריטים`, itemsTable(o.items), 120)}</td></tr>
+${two(card("➜ מה הלאה", "השלבים הבאים", steps, 220), card("₪ פירוט", "סיכום מחיר", priceTable(o), 320))}
+<tr><td style="padding-bottom:12px">${card("⌂ " + esc(SHIPPING[t.shippingMethod].label), t.shippingMethod === "pickup" ? "איסוף עצמי" : esc(c.city), where(o), 420)}</td></tr>`,
     { href: `${site()}/#chat`, label: "שאלה? דברו איתנו בצ׳אט" }, "דפוס · בית דפוס דיגיטלי");
-  const text = [`תודה ${c.name}! ההזמנה ${o.id} התקבלה.`, `${q.quantity} × ${q.productName} (${q.size}) — ${ils(q.total)} כולל מע״מ ומשלוח`, `משלוח: ${c.address}, ${c.city}`, "נחזור אליך לאישור הגרפיקה ותשלום. אספקה 3–5 ימי עסקים.", site()].join("\n");
+  const text = [`תודה ${c.name}! ההזמנה ${o.id} התקבלה.`, ...o.items.map((l) => `• ${l.quantity} × ${l.productName} — ${ils(l.subtotal)}`), `סה״כ ${ils(t.total)} כולל מע״מ ומשלוח`, `יעד משוער: ${eta(o)}`, "נחזור אליך לאישור הגרפיקה ולתשלום.", site()].join("\n");
   return { subject: `ההזמנה ${o.id} התקבלה — דפוס`, html, text };
 }
 
@@ -103,17 +106,21 @@ export async function sendOrderEmail(o: Order) {
   const url = process.env.SMTP_URL, to = process.env.NOTIFY_EMAIL;
   if (!url || !to) return console.warn("[order-email] SMTP_URL/NOTIFY_EMAIL not set — skipping", o.id);
   const { subject, html, text } = renderOrderEmail(o);
-  const file = o.artwork && path.join(UPLOADS, o.artwork);
-  const size = file ? (await stat(file).catch(() => null))?.size : undefined;
-  const attach = file && size !== undefined && size < 10 * 1024 * 1024;
+  let budget = 15 * 1024 * 1024; // keep attachments under typical mailbox limits
+  const attachments = [];
+  for (const [i, l] of o.items.entries()) {
+    if (!l.artwork) continue;
+    const file = path.join(UPLOADS, l.artwork);
+    const size = (await stat(file).catch(() => null))?.size;
+    if (size === undefined || size > budget) continue;
+    budget -= size;
+    attachments.push({ filename: `${o.id}-${i + 1}${path.extname(file)}`, path: file });
+  }
   const transport = nodemailer.createTransport(url);
-  await transport.sendMail({
-    from: process.env.MAIL_FROM ?? `"דפוס — הזמנות" <${decodeURIComponent(new URL(url).username)}>`,
-    to, subject, html, text,
-    attachments: attach ? [{ filename: `${o.id}${path.extname(file)}`, path: file }] : [],
-  });
+  const from = (name: string) => process.env.MAIL_FROM ?? `"${name}" <${decodeURIComponent(new URL(url).username)}>`;
+  await transport.sendMail({ from: from("דפוס — הזמנות"), to, subject, html, text, attachments });
   if (o.customer.email) {
     const m = renderCustomerEmail(o);
-    await transport.sendMail({ from: process.env.MAIL_FROM ?? `"דפוס" <${decodeURIComponent(new URL(url).username)}>`, to: o.customer.email, subject: m.subject, html: m.html, text: m.text });
+    await transport.sendMail({ from: from("דפוס"), to: o.customer.email, subject: m.subject, html: m.html, text: m.text });
   }
 }

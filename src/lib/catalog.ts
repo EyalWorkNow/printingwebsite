@@ -1,75 +1,269 @@
-// Single source of truth for products + pricing — used by the site AND the AI chat.
-export type Mockup = "card" | "flyer" | "poster" | "sticker" | "mug" | "shirt";
-
+// Single source of truth for products, options and pricing — used by the site, the cart, the server AND the AI chat.
+// Model: every product has base tier prices, and every option value may add its own per-unit tier price.
+//   unit  = round2((base(q) + Σ value(q)) × (1 + production surcharge))
+//   line  = unit × q + setup
+//   order = Σ lines + shipping, + VAT
+export type Mockup = "card" | "card-v" | "card-sq" | "flyer" | "poster" | "sticker" | "mug" | "shirt" | "bag" | "bottle";
+export type Tier = [from: number, unit: number]; // ₪ per unit before VAT, from `from` units up
+export type Value = { id: string; title: string; tiers?: Tier[]; color?: string; cm?: [number, number]; mockup?: Mockup };
+// first value is the default. kind "split" = quantity is split across values (e.g. shirt sizes S×5, M×3)
+export type Option = { id: string; title: string; kind?: "color" | "split"; values: Value[] };
+export type Rule = { if: [option: string, values: string[]]; hide: [option: string, values: string[]] };
 export type Product = {
-  id: string;
-  name: string;
-  desc: string;
-  mockup: Mockup;
-  sizes: string[];
-  // tiers: price per unit (₪, before VAT) from `min` quantity up
-  tiers: { min: number; unit: number }[];
-  minQty: number;
-  setup: number; // one-time prepress fee
+  id: string; name: string; desc: string; category: string; mockup: Mockup;
+  base: Tier[]; setup?: number; options: Option[]; rules?: Rule[];
+  qty: { min: number; max: number; step: number; presets: number[] };
+  production: ProductionId[]; printCm?: [number, number]; details: string[];
 };
 
 export const VAT = 0.18;
-export const SHIPPING = 39; // ponytail: flat home delivery, add zones when the business needs them
-export const FREE_SHIPPING_FROM = 500;
 
-export const PRODUCTS: Product[] = [
-  { id: "business-cards", name: "כרטיסי ביקור", desc: "כרומו 350 גרם, הדפסה דו-צדדית", mockup: "card", sizes: ["9×5 ס״מ"], minQty: 100, setup: 30,
-    tiers: [{ min: 100, unit: 0.9 }, { min: 500, unit: 0.45 }, { min: 1000, unit: 0.3 }] },
-  { id: "flyers", name: "פליירים", desc: "כרומו 170 גרם, צבע מלא", mockup: "flyer", sizes: ["A5", "A4"], minQty: 100, setup: 40,
-    tiers: [{ min: 100, unit: 1.6 }, { min: 500, unit: 0.8 }, { min: 2000, unit: 0.45 }] },
-  { id: "posters", name: "פוסטרים", desc: "נייר פוטו 200 גרם, דיו עמיד", mockup: "poster", sizes: ["A3", "A2", "50×70"], minQty: 1, setup: 0,
-    tiers: [{ min: 1, unit: 45 }, { min: 10, unit: 32 }, { min: 50, unit: 22 }] },
-  { id: "stickers", name: "מדבקות", desc: "ויניל עמיד במים, חיתוך לפי צורה", mockup: "sticker", sizes: ["5×5 ס״מ", "10×10 ס״מ"], minQty: 50, setup: 25,
-    tiers: [{ min: 50, unit: 2.2 }, { min: 250, unit: 1.2 }, { min: 1000, unit: 0.6 }] },
-  { id: "mugs", name: "ספלים ממותגים", desc: "קרמיקה לבנה 330 מ״ל, הדפסת סובלימציה", mockup: "mug", sizes: ["330 מ״ל"], minQty: 1, setup: 0,
-    tiers: [{ min: 1, unit: 49 }, { min: 12, unit: 35 }, { min: 50, unit: 24 }] },
-  { id: "tshirts", name: "חולצות מודפסות", desc: "כותנה 100%, הדפסת DTF", mockup: "shirt", sizes: ["S", "M", "L", "XL", "XXL"], minQty: 1, setup: 0,
-    tiers: [{ min: 1, unit: 69 }, { min: 10, unit: 49 }, { min: 50, unit: 35 }] },
+export const PRODUCTION = {
+  express: { label: "אקספרס", days: 1, pct: 0.5 },
+  fast: { label: "מהיר", days: 3, pct: 0.2 },
+  standard: { label: "רגיל", days: 5, pct: 0 },
+  saver: { label: "חסכוני", days: 8, pct: -0.1 },
+} as const;
+export type ProductionId = keyof typeof PRODUCTION;
+
+export const SHIPPING = {
+  pickup: { label: "איסוף עצמי", desc: "מהסטודיו, בתיאום טלפוני", price: 0, days: 0, freeFrom: 0 },
+  home: { label: "שליח עד הבית", desc: "לכל הארץ · חינם מעל ₪500 לפני מע״מ", price: 39, days: 2, freeFrom: 500 },
+  express: { label: "שליח אקספרס", desc: "יום עסקים אחד אחרי הייצור", price: 79, days: 1, freeFrom: 0 },
+} as const;
+export type ShippingId = keyof typeof SHIPPING;
+
+export const CATEGORIES = [
+  { id: "print", name: "מוצרי דפוס", desc: "כרטיסי ביקור, פליירים, ברושורים, נייר לוגו ומחברות" },
+  { id: "signs", name: "מדבקות ושילוט", desc: "מדבקות בחיתוך, פוסטרים, רול-אפ והדפסה על קנבס" },
+  { id: "apparel", name: "ביגוד ממותג", desc: "חולצות, קפוצ׳ונים וחולצות ילדים עם הלוגו שלכם" },
+  { id: "promo", name: "מוצרי פרסום", desc: "ספלים, בקבוקים ותיקים ממותגים ללקוחות ולצוות" },
 ];
 
-const SIZE_FACTOR: Record<string, number> = { A4: 1.6, A2: 1.8, "50×70": 2.4, "10×10 ס״מ": 2.5 };
+const SIDES: Option = { id: "sides", title: "צידי הדפסה", values: [{ id: "1", title: "צד אחד" }, { id: "2", title: "דו צדדי", tiers: [[1, 0.12], [500, 0.06], [2000, 0.03]] }] };
+const LAMINATION: Option = { id: "lamination", title: "למינציה", values: [
+  { id: "none", title: "ללא" },
+  { id: "matte", title: "למינציה מט", tiers: [[1, 0.05], [1000, 0.03]] },
+  { id: "gloss", title: "למינציה מבריקה", tiers: [[1, 0.05], [1000, 0.03]] },
+  { id: "soft", title: "סופט טאץ׳ (משי)", tiers: [[1, 0.1], [1000, 0.06]] },
+] };
+const SHIRT_COLORS: Value[] = [["white", "לבן", "#fafafa"], ["black", "שחור", "#171717"], ["navy", "כחול כהה", "#1e2a5a"], ["red", "אדום", "#c62828"], ["green", "ירוק", "#2e7d4f"], ["gray", "אפור", "#9e9e9e"]]
+  .map(([id, title, color]) => ({ id, title, color }));
+const SHIRT_PRINT: Option = { id: "print", title: "מיקום הדפסה", values: [
+  { id: "pocket", title: "כיס קדמי", cm: [10, 10] },
+  { id: "front", title: "קדמי מלא", tiers: [[1, 6], [20, 5], [100, 4]], cm: [28, 35] },
+  { id: "front-back", title: "קדמי + אחורי מלא", tiers: [[1, 18], [20, 15], [100, 12]], cm: [28, 35] },
+] };
+const sizes = (...s: string[]): Option => ({ id: "size", title: "מידה", kind: "split", values: s.map((x) => ({ id: x, title: x })) });
+const PRINT_DAYS: ProductionId[] = ["express", "fast", "standard", "saver"];
 
+export const PRODUCTS: Product[] = [
+  // ── print
+  { id: "business-card", name: "כרטיס ביקור", desc: "כרומו מט 300 גרם, הדפסה צבעונית חדה", category: "print", mockup: "card",
+    base: [[100, 0.95], [300, 0.42], [500, 0.27], [1000, 0.16], [2000, 0.12], [5000, 0.08]],
+    options: [
+      { id: "size", title: "גודל", values: [{ id: "standard", title: "סטנדרטי 9×5 ס״מ", cm: [9, 5] }, { id: "wallet", title: "לארנק 8.5×5.5 ס״מ", cm: [8.5, 5.5] }, { id: "square", title: "ריבועי 6.5×6.5 ס״מ", cm: [6.5, 6.5], mockup: "card-sq" }] },
+      { id: "orientation", title: "פורמט", values: [{ id: "landscape", title: "שוכב" }, { id: "portrait", title: "עומד", mockup: "card-v" }] },
+      SIDES, LAMINATION,
+      { id: "corners", title: "פינות", values: [{ id: "straight", title: "ישרות" }, { id: "round", title: "מעוגלות", tiers: [[1, 0.1], [1000, 0.06]] }] },
+      { id: "paper", title: "נייר", values: [{ id: "matte300", title: "כרומו מט 300 גרם" }, { id: "eco300", title: "נטול עץ 300 גרם", tiers: [[1, 0.04]] }, { id: "premium400", title: "פרימיום 400 גרם", tiers: [[1, 0.15], [1000, 0.08]] }] },
+    ],
+    rules: [{ if: ["size", ["square"]], hide: ["orientation", ["landscape", "portrait"]] }, { if: ["paper", ["eco300"]], hide: ["lamination", ["matte", "gloss", "soft"]] }],
+    qty: { min: 100, max: 10000, step: 50, presets: [100, 300, 500, 1000, 2000, 5000] }, production: PRINT_DAYS,
+    details: ["הדפסה דיגיטלית צבעונית מלאה", "אפשרות לגימור למינציה ופינות מעוגלות", "מומלץ להשאיר 3 מ״מ שוליים לחיתוך"] },
+  { id: "flyer", name: "פלייר", desc: "כרומו 135–250 גרם, צבע מלא", category: "print", mockup: "flyer", setup: 20,
+    base: [[100, 0.7], [250, 0.48], [500, 0.33], [1000, 0.22], [2500, 0.16], [5000, 0.12]],
+    options: [
+      { id: "size", title: "גודל", values: [{ id: "a5", title: "A5 ‏14.8×21 ס״מ", cm: [14.8, 21] }, { id: "a4", title: "A4 ‏21×29.7 ס״מ", tiers: [[1, 0.25], [1000, 0.12]], cm: [21, 29.7] }, { id: "a6", title: "A6 ‏10.5×14.8 ס״מ", tiers: [[1, -0.15], [1000, -0.07]], cm: [10.5, 14.8] }] },
+      { id: "paper", title: "נייר", values: [{ id: "135", title: "כרומו מט 135 גרם" }, { id: "170", title: "כרומו מט 170 גרם", tiers: [[1, 0.04]] }, { id: "250", title: "כרומו מט 250 גרם", tiers: [[1, 0.09], [1000, 0.06]] }] },
+      SIDES,
+    ],
+    qty: { min: 100, max: 20000, step: 50, presets: [100, 250, 500, 1000, 2500, 5000] }, production: PRINT_DAYS,
+    details: ["פלייר ללא קיפול", "הדפסה בצבע מלא על כרומו מט", "מתאים לחלוקה, תיבות דואר ודוכנים"] },
+  { id: "brochure", name: "ברושור מקופל", desc: "A4 בקיפול לשלושה, כרומו 170 גרם", category: "print", mockup: "flyer", setup: 30,
+    base: [[100, 1.6], [250, 1.05], [500, 0.75], [1000, 0.55], [2500, 0.42]],
+    options: [{ id: "fold", title: "קיפול", values: [{ id: "tri", title: "קיפול לשלושה (Z / C)", cm: [21, 29.7] }, { id: "half", title: "קיפול לחצי", cm: [21, 29.7] }] }, { id: "paper", title: "נייר", values: [{ id: "170", title: "כרומו מט 170 גרם" }, { id: "250", title: "כרומו מט 250 גרם", tiers: [[1, 0.12]] }] }],
+    qty: { min: 100, max: 10000, step: 50, presets: [100, 250, 500, 1000, 2500] }, production: ["fast", "standard", "saver"],
+    details: ["הדפסה דו צדדית כלולה", "קיפול מכונה מדויק", "שישה עמודי תוכן"] },
+  { id: "letterhead", name: "נייר לוגו", desc: "A4 ‏100 גרם, מתאים למדפסת משרדית", category: "print", mockup: "flyer",
+    base: [[100, 0.85], [250, 0.6], [500, 0.42], [1000, 0.3], [2500, 0.24]],
+    options: [{ id: "paper", title: "נייר", values: [{ id: "100", title: "אופסט 100 גרם", cm: [21, 29.7] }, { id: "120", title: "אופסט 120 גרם", tiers: [[1, 0.05]], cm: [21, 29.7] }] }],
+    qty: { min: 100, max: 10000, step: 50, presets: [100, 250, 500, 1000, 2500] }, production: ["fast", "standard"],
+    details: ["מותאם להדפסה חוזרת במדפסת לייזר", "צבע מלא, צד אחד"] },
+  { id: "notebook", name: "מחברת ממותגת", desc: "A5 ספירלה, כריכה מודפסת מלאה", category: "print", mockup: "flyer", setup: 40,
+    base: [[10, 22], [25, 17], [50, 14], [100, 11.5], [250, 9.5]],
+    options: [{ id: "pages", title: "דפים", values: [{ id: "50", title: "50 דפים שורה", cm: [14.8, 21] }, { id: "100", title: "100 דפים שורה", tiers: [[1, 3.5]], cm: [14.8, 21] }] }, { id: "cover", title: "כריכה", values: [{ id: "soft", title: "כריכה רכה" }, { id: "hard", title: "כריכה קשה", tiers: [[1, 6], [100, 4.5]] }] }],
+    qty: { min: 10, max: 2000, step: 5, presets: [10, 25, 50, 100, 250] }, production: ["fast", "standard", "saver"],
+    details: ["ספירלה מתכת", "כריכה בהדפסה מלאה מקדימה ומאחור", "מתנה מושלמת לכנסים ולעובדים"] },
+  // ── stickers & signs
+  { id: "sticker", name: "מדבקות", desc: "חיתוך לפי צורה, נייר או ויניל עמיד", category: "signs", mockup: "sticker", setup: 25,
+    base: [[50, 1.9], [100, 1.2], [250, 0.7], [500, 0.45], [1000, 0.3], [5000, 0.18]],
+    options: [
+      { id: "size", title: "גודל", values: [{ id: "5", title: "5×5 ס״מ", cm: [5, 5] }, { id: "7", title: "7×7 ס״מ", tiers: [[1, 0.3], [1000, 0.1]], cm: [7, 7] }, { id: "10", title: "10×10 ס״מ", tiers: [[1, 0.7], [1000, 0.25]], cm: [10, 10] }] },
+      { id: "material", title: "חומר", values: [{ id: "paper", title: "נייר מבריק" }, { id: "vinyl", title: "ויניל עמיד במים", tiers: [[1, 0.25], [1000, 0.1]] }, { id: "clear", title: "שקוף", tiers: [[1, 0.35], [1000, 0.14]] }] },
+      { id: "shape", title: "צורה", values: [{ id: "circle", title: "עיגול" }, { id: "square", title: "ריבוע" }, { id: "die", title: "חיתוך לפי קו העיצוב", tiers: [[1, 0.15], [1000, 0.05]] }] },
+    ],
+    qty: { min: 50, max: 20000, step: 50, presets: [50, 100, 250, 500, 1000, 5000] }, production: PRINT_DAYS,
+    details: ["מגיעות על גיליונות נוחים לקילוף", "ויניל עמיד במים ובשמש — מתאים לבקבוקים ולחוץ", "חיתוך לפי קו: שלחו קובץ עם קו חיתוך או שנכין עבורכם"] },
+  { id: "poster", name: "פוסטר", desc: "נייר פוטו 200 גרם, דיו עמיד", category: "signs", mockup: "poster",
+    base: [[1, 28], [5, 22], [10, 17], [25, 13], [50, 10]],
+    options: [{ id: "size", title: "גודל", values: [{ id: "a3", title: "A3 ‏29.7×42 ס״מ", cm: [29.7, 42] }, { id: "a2", title: "A2 ‏42×59.4 ס״מ", tiers: [[1, 14], [25, 8]], cm: [42, 59.4] }, { id: "50x70", title: "50×70 ס״מ", tiers: [[1, 24], [25, 14]], cm: [50, 70] }, { id: "70x100", title: "70×100 ס״מ", tiers: [[1, 46], [25, 28]], cm: [70, 100] }] },
+      { id: "paper", title: "נייר", values: [{ id: "photo", title: "פוטו סאטן 200 גרם" }, { id: "matte", title: "מט אמנותי 230 גרם", tiers: [[1, 6], [25, 4]] }] }],
+    qty: { min: 1, max: 500, step: 1, presets: [1, 5, 10, 25, 50] }, production: ["express", "fast", "standard"],
+    details: ["הדפסת הזרקת דיו פיגמנט", "מגיע מגולגל בשרוול קשיח"] },
+  { id: "roll-up", name: "רול-אפ", desc: "מתקן אלומיניום + הדפסה + תיק נשיאה", category: "signs", mockup: "poster",
+    base: [[1, 260], [3, 235], [10, 210]],
+    options: [{ id: "size", title: "גודל", values: [{ id: "85", title: "85×200 ס״מ", cm: [85, 200] }, { id: "100", title: "100×200 ס״מ", tiers: [[1, 40]], cm: [100, 200] }] }],
+    qty: { min: 1, max: 50, step: 1, presets: [1, 3, 10] }, production: ["express", "fast", "standard"],
+    details: ["הדפסה על בד/PVC ללא השתקפות", "מתקן אלומיניום ותיק נשיאה כלולים", "מוכן לתערוכה תוך דקה"] },
+  { id: "canvas", name: "הדפסה על קנבס", desc: "קנבס כותנה על מסגרת עץ 2 ס״מ", category: "signs", mockup: "poster",
+    base: [[1, 95], [5, 82], [10, 70]],
+    options: [{ id: "size", title: "גודל", values: [{ id: "30x40", title: "30×40 ס״מ", cm: [30, 40] }, { id: "40x60", title: "40×60 ס״מ", tiers: [[1, 50]], cm: [40, 60] }, { id: "60x90", title: "60×90 ס״מ", tiers: [[1, 140]], cm: [60, 90] }] }],
+    qty: { min: 1, max: 100, step: 1, presets: [1, 5, 10] }, production: ["fast", "standard"],
+    details: ["מתיחה ידנית על מסגרת עץ", "מגיע עם תלייה מוכנה"] },
+  // ── apparel
+  { id: "tshirt", name: "חולצה ממותגת", desc: "כותנה 100%, הדפסת DTF חדה ועמידה", category: "apparel", mockup: "shirt",
+    base: [[1, 32], [10, 27], [20, 24], [50, 21], [100, 18]],
+    options: [{ id: "color", title: "צבע חולצה", kind: "color", values: SHIRT_COLORS }, SHIRT_PRINT, sizes("S", "M", "L", "XL", "XXL")],
+    qty: { min: 1, max: 1000, step: 1, presets: [1, 10, 20, 50, 100] }, production: ["fast", "standard", "saver"], printCm: [28, 35],
+    details: ["כותנה סרוקה 160 גרם", "הדפסת DTF — עמידה בכביסה", "אפשר לחלק את הכמות בין מידות"] },
+  { id: "hoodie", name: "קפוצ׳ון ממותג", desc: "פליז 280 גרם עם כיס קנגורו", category: "apparel", mockup: "shirt",
+    base: [[1, 89], [10, 79], [20, 72], [50, 65]],
+    options: [{ id: "color", title: "צבע", kind: "color", values: SHIRT_COLORS.filter((c) => ["black", "navy", "gray", "white"].includes(c.id)) }, SHIRT_PRINT, sizes("S", "M", "L", "XL", "XXL")],
+    qty: { min: 1, max: 500, step: 1, presets: [1, 10, 20, 50] }, production: ["fast", "standard"], printCm: [28, 35],
+    details: ["פליז מוברש מבפנים", "קפוצ׳ון עם שרוך וכיס קנגורו", "אפשר לחלק את הכמות בין מידות"] },
+  { id: "kids-tshirt", name: "חולצת ילדים", desc: "כותנה 100%, מידות 2–14", category: "apparel", mockup: "shirt",
+    base: [[1, 28], [10, 23], [20, 20], [50, 17]],
+    options: [{ id: "color", title: "צבע חולצה", kind: "color", values: SHIRT_COLORS }, { ...SHIRT_PRINT, values: SHIRT_PRINT.values.map((v) => ({ ...v, cm: [20, 25] as [number, number] })) }, sizes("2", "4", "6", "8", "10", "12", "14")],
+    qty: { min: 1, max: 1000, step: 1, presets: [1, 10, 20, 50] }, production: ["fast", "standard", "saver"], printCm: [20, 25],
+    details: ["מושלם לחוגים, ימי הולדת וגנים", "הדפסה בטוחה לעור", "אפשר לחלק את הכמות בין מידות"] },
+  // ── promo
+  { id: "mug", name: "ספל ממותג", desc: "קרמיקה 330 מ״ל, הדפסת סובלימציה", category: "promo", mockup: "mug",
+    base: [[1, 39], [12, 27], [36, 19], [72, 15], [144, 12]],
+    options: [{ id: "inside", title: "צבע פנים", kind: "color", values: [{ id: "white", title: "לבן", color: "#fafafa" }, { id: "black", title: "שחור", color: "#171717", tiers: [[1, 4]] }, { id: "red", title: "אדום", color: "#c62828", tiers: [[1, 4]] }, { id: "blue", title: "כחול", color: "#1e4fa3", tiers: [[1, 4]] }] },
+      { id: "print", title: "הדפסה", values: [{ id: "one", title: "צד אחד", cm: [9, 8] }, { id: "wrap", title: "מסביב (360°)", tiers: [[1, 3]], cm: [20, 8] }] }],
+    qty: { min: 1, max: 2000, step: 1, presets: [1, 12, 36, 72, 144] }, production: ["fast", "standard", "saver"],
+    details: ["מתאים למדיח כלים", "הדפסת סובלימציה בצבע מלא", "נארז בקופסה אישית"] },
+  { id: "bottle", name: "בקבוק נירוסטה", desc: "750 מ״ל דופן כפולה, חריטה או הדפסה", category: "promo", mockup: "bottle",
+    base: [[10, 62], [25, 52], [50, 45], [100, 39]],
+    options: [{ id: "color", title: "צבע", kind: "color", values: [{ id: "white", title: "לבן", color: "#fafafa" }, { id: "black", title: "שחור", color: "#171717" }, { id: "steel", title: "נירוסטה", color: "#b0b6bc" }, { id: "navy", title: "כחול", color: "#1e2a5a" }] },
+      { id: "branding", title: "מיתוג", values: [{ id: "print", title: "הדפסה צבעונית", cm: [6, 8] }, { id: "engrave", title: "חריטת לייזר", tiers: [[1, 6]], cm: [6, 8] }] }],
+    qty: { min: 10, max: 2000, step: 5, presets: [10, 25, 50, 100] }, production: ["standard", "saver"],
+    details: ["שומר קור 24 שעות וחום 12 שעות", "חריטת לייזר — לוגו בצבע אחד שלא יורד"] },
+  { id: "tote", name: "תיק בד ממותג", desc: "כותנה 140 גרם, ידיות ארוכות", category: "promo", mockup: "bag",
+    base: [[25, 14], [50, 11], [100, 8.5], [250, 7], [500, 6]],
+    options: [{ id: "color", title: "צבע תיק", kind: "color", values: [{ id: "natural", title: "טבעי", color: "#efe6d2" }, { id: "black", title: "שחור", color: "#171717", tiers: [[1, 1]] }, { id: "navy", title: "כחול", color: "#1e2a5a", tiers: [[1, 1]] }] },
+      { id: "print", title: "הדפסה", values: [{ id: "one", title: "צד אחד", cm: [25, 25] }, { id: "two", title: "שני צדדים", tiers: [[1, 3.5], [250, 2.5]], cm: [25, 25] }] }],
+    qty: { min: 25, max: 5000, step: 5, presets: [25, 50, 100, 250, 500] }, production: ["standard", "saver"],
+    details: ["38×42 ס״מ", "מתאים לכנסים, חנויות ואירועים"] },
+];
+
+const r2 = (n: number) => Math.round(n * 100 + 1e-9) / 100; // epsilon: 1.425 must round up
+export const ils = (n: number) => `₪${n.toLocaleString("he-IL", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 export const findProduct = (id: string) => PRODUCTS.find((p) => p.id === id || p.name === id);
+export const tierAt = (t: Tier[] | undefined, q: number) => (t?.length ? (t.findLast(([from]) => q >= from) ?? t[0])[1] : 0);
 
-export type Quote = {
-  productId: string; productName: string; size: string; quantity: number;
-  unitPrice: number; setup: number; subtotal: number; shipping: number; vat: number; total: number;
-};
-
-const r2 = (n: number) => Math.round(n * 100) / 100;
-
-export function quote(productId: string, quantity: number, size?: string): Quote {
-  const p = findProduct(productId);
-  if (!p) throw new Error(`מוצר לא קיים: ${productId}`);
-  if (!Number.isInteger(quantity) || quantity < p.minQty) throw new Error(`כמות מינימלית ל${p.name}: ${p.minQty}`);
-  if (quantity > 100000) throw new Error("לכמויות מעל 100,000 נא לפנות אלינו");
-  const s = size && p.sizes.includes(size) ? size : p.sizes[0];
-  const tier = [...p.tiers].reverse().find((t) => quantity >= t.min)!;
-  const unitPrice = r2(tier.unit * (SIZE_FACTOR[s] ?? 1));
-  const subtotal = r2(unitPrice * quantity + p.setup);
-  const shipping = subtotal >= FREE_SHIPPING_FROM ? 0 : SHIPPING;
-  const vat = r2((subtotal + shipping) * VAT);
-  return { productId: p.id, productName: p.name, size: s, quantity, unitPrice, setup: p.setup, subtotal, shipping, vat, total: r2(subtotal + shipping + vat) };
+/** Values that stay visible after applying the product's rules to the current selection. */
+export function visibleValues(p: Product, sel: Record<string, string>) {
+  const hidden = new Set(p.rules?.filter((r) => r.if[1].includes(sel[r.if[0]])).flatMap((r) => r.hide[1].map((v) => `${r.hide[0]}:${v}`)));
+  return Object.fromEntries(p.options.map((o) => [o.id, o.values.filter((v) => !hidden.has(`${o.id}:${v.id}`))]));
 }
 
-export const ils = (n: number) => `₪${n.toLocaleString("he-IL", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+/** Fill defaults, drop hidden/unknown choices. Options with nothing visible are left out. Split options are not in `sel`. */
+export function normalize(p: Product, sel: Record<string, string> = {}) {
+  const out: Record<string, string> = {};
+  for (let pass = 0; pass < 2; pass++) { // second pass: rules may depend on values fixed in the first
+    const vis = visibleValues(p, { ...sel, ...out });
+    for (const o of p.options) {
+      if (o.kind === "split") continue;
+      const v = vis[o.id];
+      if (!v.length) { delete out[o.id]; continue; }
+      out[o.id] = v.some((x) => x.id === sel[o.id]) ? sel[o.id] : v[0].id;
+    }
+  }
+  return out;
+}
 
-// Physical print area (cm) per size — used to warn about low-resolution artwork.
-const PRINT_CM: Record<string, [number, number]> = {
-  "9×5 ס״מ": [9, 5], A5: [14.8, 21], A4: [21, 29.7], A3: [29.7, 42], A2: [42, 59.4], "50×70": [50, 70],
-  "5×5 ס״מ": [5, 5], "10×10 ס״מ": [10, 10], "330 מ״ל": [20, 9],
+export type LineInput = { productId: string; quantity?: number; options?: Record<string, string>; split?: Record<string, number>; production?: string; artwork?: string; placement?: string };
+export type Line = {
+  productId: string; productName: string; quantity: number; options: Record<string, string>; labels: [string, string][];
+  split?: Record<string, number>; production: ProductionId; productionLabel: string; productionDays: number;
+  unitPrice: number; setup: number; subtotal: number; artwork?: string; placement?: string;
 };
-const SHIRT_CM: [number, number] = [28, 35];
 
-/** Effective DPI of a w×h px image printed at the product size (orientation-agnostic). */
-export function printDpi(size: string, w: number, h: number): number {
-  const [a, b] = (PRINT_CM[size] ?? SHIRT_CM).toSorted((x, y) => x - y);
+export function priceLine(input: LineInput): Line {
+  const p = findProduct(String(input.productId));
+  if (!p) throw new Error(`מוצר לא קיים: ${input.productId}`);
+  const sel = normalize(p, input.options ?? {});
+  const splitOpt = p.options.find((o) => o.kind === "split");
+  let quantity = Number(input.quantity);
+  let split: Record<string, number> | undefined;
+  if (splitOpt) {
+    const raw = input.split && Object.keys(input.split).length ? input.split : { [splitOpt.values[0].id]: quantity };
+    split = {};
+    for (const [k, n] of Object.entries(raw)) {
+      if (!splitOpt.values.some((v) => v.id === k)) throw new Error(`${splitOpt.title} לא קיימת: ${k}`);
+      if (!Number.isInteger(n) || n < 0) throw new Error(`כמות לא תקינה למידה ${k}`);
+      if (n) split[k] = n;
+    }
+    quantity = Object.values(split).reduce((a, b) => a + b, 0);
+  }
+  const { min, max, step, presets } = p.qty;
+  if (!Number.isInteger(quantity) || quantity < min) throw new Error(`כמות מינימלית ל${p.name}: ${min}`);
+  if (quantity > max) throw new Error(`כמות מקסימלית ל${p.name}: ${max.toLocaleString("he-IL")} — לכמויות גדולות דברו איתנו`);
+  if (!presets.includes(quantity) && quantity % step) throw new Error(`ל${p.name} אפשר להזמין בכפולות של ${step}`);
+  const production = (p.production.includes(input.production as ProductionId) ? input.production : p.production.includes("standard") ? "standard" : p.production[0]) as ProductionId;
+
+  const chosen = p.options.filter((o) => sel[o.id]).map((o) => [o, o.values.find((v) => v.id === sel[o.id])!] as const);
+  const raw = tierAt(p.base, quantity) + chosen.reduce((s, [, v]) => s + tierAt(v.tiers, quantity), 0);
+  const unitPrice = r2(raw * (1 + PRODUCTION[production].pct));
+  const setup = p.setup ?? 0;
+  return {
+    productId: p.id, productName: p.name, quantity, options: sel,
+    labels: [...chosen.map(([o, v]) => [o.title, v.title] as [string, string]), ...(split ? [[splitOpt!.title, Object.entries(split).map(([k, n]) => `${k}×${n}`).join(", ")] as [string, string]] : [])],
+    split, production, productionLabel: PRODUCTION[production].label, productionDays: PRODUCTION[production].days,
+    unitPrice, setup, subtotal: r2(unitPrice * quantity + setup),
+    artwork: input.artwork && /^[\w-]+\.(png|jpg|webp|pdf|svg)$/.test(input.artwork) ? input.artwork : undefined,
+    placement: input.placement?.slice(0, 120),
+  };
+}
+
+export type Totals = { subtotal: number; shipping: number; vat: number; total: number; shippingMethod: ShippingId };
+export function totals(lines: Pick<Line, "subtotal">[], method: string = "home"): Totals {
+  const m = (method in SHIPPING ? method : "home") as ShippingId;
+  const subtotal = r2(lines.reduce((s, l) => s + l.subtotal, 0));
+  const s = SHIPPING[m];
+  const shipping = s.freeFrom && subtotal >= s.freeFrom ? 0 : s.price;
+  const vat = r2((subtotal + shipping) * VAT);
+  return { subtotal, shipping, vat, total: r2(subtotal + shipping + vat), shippingMethod: m };
+}
+
+export const withVat = (n: number) => r2(n * (1 + VAT));
+/** Lowest per-unit price incl. VAT (default options, largest preset, cheapest production) — for "החל מ-" labels. */
+export function fromPrice(p: Product) {
+  const cheapest = p.production.toSorted((a, b) => PRODUCTION[a].pct - PRODUCTION[b].pct)[0];
+  return withVat(priceLine({ productId: p.id, quantity: p.qty.presets.at(-1), production: cheapest }).unitPrice);
+}
+export const mockupFor = (p: Product, sel: Record<string, string>): Mockup =>
+  p.options.flatMap((o) => o.values.filter((v) => sel[o.id] === v.id && v.mockup)).at(-1)?.mockup ?? p.mockup;
+export function tintFor(p: Product, sel: Record<string, string>) {
+  const o = p.options.find((x) => x.kind === "color" && x.id !== "inside");
+  return o?.values.find((v) => v.id === sel[o.id])?.color;
+}
+export const printCmFor = (p: Product, sel: Record<string, string>): [number, number] | undefined =>
+  p.options.flatMap((o) => o.values.filter((v) => sel[o.id] === v.id && v.cm)).at(0)?.cm ?? p.printCm;
+
+/** Effective DPI of a w×h px image printed at cm (orientation-agnostic). */
+export function printDpi(cm: [number, number], w: number, h: number): number {
+  const [a, b] = cm.toSorted((x, y) => x - y);
   const [pw, ph] = [w, h].toSorted((x, y) => x - y);
   return Math.round(Math.min(pw / (a / 2.54), ph / (b / 2.54)));
 }
 export const dpiLevel = (dpi: number) => (dpi >= 250 ? "good" : dpi >= 150 ? "ok" : "low");
+
+/** Add Israeli business days (Sun–Thu). */
+export function addBusinessDays(from: Date, n: number) {
+  const d = new Date(from);
+  while (n > 0) { d.setDate(d.getDate() + 1); if (d.getDay() < 5) n--; }
+  return d;
+}

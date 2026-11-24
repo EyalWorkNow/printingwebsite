@@ -3,7 +3,7 @@ import { connection } from "next/server";
 import Link from "next/link";
 import { ChevronDown, Download, MessageCircle, Globe } from "lucide-react";
 import { listOrders, STATUSES, type Order } from "@/lib/orders";
-import { ils } from "@/lib/catalog";
+import { ils, SHIPPING } from "@/lib/catalog";
 import { GlowCard } from "@/components/glow-card";
 import { updateStatus } from "./actions";
 
@@ -34,13 +34,13 @@ async function Orders({ searchParams }: { searchParams: PageProps<"/admin">["sea
   const { status, q } = (await searchParams) as { status?: string; q?: string };
   const all = (await listOrders()).reverse(); // newest first
   const term = q?.trim();
-  const shown = all.filter((o) => (!status || o.status === status) && (!term || [o.id, o.customer.name, o.customer.phone, o.customer.city].some((v) => v.includes(term))));
+  const shown = all.filter((o) => (!status || o.status === status) && (!term || [o.id, o.customer.name, o.customer.phone, o.customer.city ?? "", ...o.items.map((l) => l.productName)].some((v) => v.includes(term))));
   const live = all.filter((o) => o.status !== "בוטלה");
 
   const stats = [
     { t: "סה״כ הזמנות", v: all.length.toLocaleString("he-IL") },
     { t: "פתוחות (התקבלה + בהכנה)", v: all.filter((o) => o.status === "התקבלה" || o.status === "בהכנה").length.toLocaleString("he-IL") },
-    { t: "מחזור (ללא בוטלו)", v: ils(live.reduce((s, o) => s + o.quote.total, 0)) },
+    { t: "מחזור (ללא בוטלו)", v: ils(live.reduce((s, o) => s + o.totals.total, 0)) },
   ];
   const href = (s?: string) => `/admin?${new URLSearchParams({ ...(s && { status: s }), ...(term && { q: term }) })}`;
 
@@ -71,9 +71,9 @@ async function Orders({ searchParams }: { searchParams: PageProps<"/admin">["sea
               <details className="group rounded-2xl border bg-neutral-950 open:border-neutral-600">
                 <summary className="grid cursor-pointer list-none grid-cols-2 items-center gap-x-4 gap-y-1 p-4 text-sm md:grid-cols-[8rem_1fr_1fr_7rem_6rem_5.5rem_1rem]">
                   <span className="font-mono text-neutral-300">{o.id}</span>
-                  <span className="font-medium">{o.customer.name} <span className="text-neutral-500">· {o.customer.city}</span></span>
-                  <span className="text-neutral-400">{o.quote.quantity.toLocaleString("he-IL")} × {o.quote.productName}</span>
-                  <span className="font-semibold">{ils(o.quote.total)}</span>
+                  <span className="font-medium">{o.customer.name} <span className="text-neutral-500">· {o.customer.city ?? "איסוף עצמי"}</span></span>
+                  <span className="truncate text-neutral-400">{o.items.map((l) => `${l.quantity.toLocaleString("he-IL")} × ${l.productName}`).join(" · ")}</span>
+                  <span className="font-semibold">{ils(o.totals.total)}</span>
                   <span className="text-xs text-neutral-500">{date(o.createdAt)}</span>
                   <span className={`w-fit rounded-full border px-2 py-0.5 text-xs ${TONE[o.status]}`}>{o.status}</span>
                   <ChevronDown className="hidden h-4 w-4 text-neutral-500 transition group-open:rotate-180 md:block" />
@@ -84,32 +84,34 @@ async function Orders({ searchParams }: { searchParams: PageProps<"/admin">["sea
                     <dd>{o.customer.name}</dd>
                     <dd><a href={`tel:${o.customer.phone}`} className="underline-offset-2 hover:underline" dir="ltr">{o.customer.phone}</a></dd>
                     {o.customer.email && <dd><a href={`mailto:${o.customer.email}`} className="hover:underline">{o.customer.email}</a></dd>}
-                    <dd>{o.customer.address}, {o.customer.city}</dd>
+                    <dd>{SHIPPING[o.totals.shippingMethod].label}{o.customer.address && ` — ${o.customer.address}, ${o.customer.city}`}</dd>
+                    {o.customer.business && <dd>{o.customer.business}{o.customer.businessId && ` · ${o.customer.businessId}`}</dd>}
                     {o.customer.notes && <dd className="text-neutral-400">הערות: {o.customer.notes}</dd>}
                     <dd className="flex items-center gap-1.5 pt-1 text-xs text-neutral-500">{o.source === "chat" ? <><MessageCircle className="h-3.5 w-3.5" /> הוזמן בצ׳אט AI</> : <><Globe className="h-3.5 w-3.5" /> הוזמן באתר</>}</dd>
                   </dl>
-                  <dl className="grid h-fit grid-cols-2 gap-y-1.5">
-                    <dt className="col-span-2 text-xs text-neutral-500">פירוט מחיר</dt>
-                    <dt className="text-neutral-400">מוצר</dt><dd>{o.quote.productName} · {o.quote.size}</dd>
-                    <dt className="text-neutral-400">כמות × מחיר</dt><dd>{o.quote.quantity.toLocaleString("he-IL")} × {ils(o.quote.unitPrice)}</dd>
-                    {o.quote.setup > 0 && <><dt className="text-neutral-400">הכנה לדפוס</dt><dd>{ils(o.quote.setup)}</dd></>}
-                    <dt className="text-neutral-400">משלוח</dt><dd>{o.quote.shipping ? ils(o.quote.shipping) : "חינם"}</dd>
-                    <dt className="text-neutral-400">מע״מ</dt><dd>{ils(o.quote.vat)}</dd>
-                    <dt className="font-semibold">סה״כ</dt><dd className="font-semibold">{ils(o.quote.total)}</dd>
-                  </dl>
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <p className="text-xs text-neutral-500">גרפיקה</p>
-                      {o.artwork ? (
-                        <>
-                          {!o.artwork.endsWith(".pdf") && (
-                            // eslint-disable-next-line @next/next/no-img-element -- auth-protected file, not for next/image
-                            <img src={`/api/admin/file/${o.artwork}`} alt={`גרפיקה להזמנה ${o.id}`} className="max-h-40 rounded-lg border bg-neutral-900 object-contain" loading="lazy" />
-                          )}
-                          <a href={`/api/admin/file/${o.artwork}`} download={`${o.id}.${o.artwork.split(".").pop()}`} className="inline-flex items-center gap-1.5 text-neutral-300 hover:text-white"><Download className="h-4 w-4" /> הורדת קובץ</a>
-                        </>
-                      ) : <p className="text-amber-400">טרם הועלתה גרפיקה</p>}
-                    </div>
+                  <div className="space-y-3 md:col-span-2">
+                    <p className="text-xs text-neutral-500">פריטים</p>
+                    {o.items.map((l, i) => (
+                      <div key={i} className="flex gap-4 rounded-xl border p-3">
+                        {l.artwork && !l.artwork.endsWith(".pdf") ? (
+                          // eslint-disable-next-line @next/next/no-img-element -- auth-protected file, not for next/image
+                          <img src={`/api/admin/file/${l.artwork}`} alt={`גרפיקה לפריט ${i + 1}`} className="h-20 w-20 shrink-0 rounded-lg border bg-neutral-900 object-contain" loading="lazy" />
+                        ) : <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-lg border text-xs text-neutral-500">{l.artwork ? "PDF" : "אין קובץ"}</div>}
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <p className="font-medium">{l.quantity.toLocaleString("he-IL")} × {l.productName} <span className="text-neutral-500">· {ils(l.unitPrice)} ליח׳</span></p>
+                          <p className="text-xs text-neutral-400">{l.labels.map(([k, v]) => `${k}: ${v}`).join(" · ")}</p>
+                          <p className="text-xs text-neutral-500">ייצור {l.productionLabel} ({l.productionDays} ימי עסקים){l.setup > 0 && ` · הכנה ${ils(l.setup)}`}{l.placement && ` · ${l.placement}`}</p>
+                          {l.artwork ? <a href={`/api/admin/file/${l.artwork}`} download={`${o.id}-${i + 1}.${l.artwork.split(".").pop()}`} className="inline-flex items-center gap-1.5 text-xs text-neutral-300 hover:text-white"><Download className="h-3.5 w-3.5" /> הורדת קובץ</a> : <p className="text-xs text-amber-400">טרם הועלתה גרפיקה</p>}
+                        </div>
+                        <span className="font-semibold">{ils(l.subtotal)}</span>
+                      </div>
+                    ))}
+                    <dl className="grid grid-cols-2 gap-y-1 pt-1 sm:w-72">
+                      <dt className="text-neutral-400">מוצרים</dt><dd>{ils(o.totals.subtotal)}</dd>
+                      <dt className="text-neutral-400">{SHIPPING[o.totals.shippingMethod].label}</dt><dd>{o.totals.shipping ? ils(o.totals.shipping) : "חינם"}</dd>
+                      <dt className="text-neutral-400">מע״מ</dt><dd>{ils(o.totals.vat)}</dd>
+                      <dt className="font-semibold">סה״כ</dt><dd className="font-semibold">{ils(o.totals.total)}</dd>
+                    </dl>
                     <form action={updateStatus} className="flex items-center gap-2">
                       <input type="hidden" name="id" value={o.id} />
                       <select name="status" defaultValue={o.status} aria-label="סטטוס הזמנה" className="rounded-lg border border-input bg-transparent px-2 py-1.5">

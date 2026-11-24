@@ -1,33 +1,53 @@
-import { PRODUCTS, quote, FREE_SHIPPING_FROM, SHIPPING } from "@/lib/catalog";
+import { PRODUCTS, PRODUCTION, SHIPPING, priceLine, totals, withVat, type LineInput } from "@/lib/catalog";
 import { createOrder } from "@/lib/orders";
 
 type Msg = { role: "system" | "user" | "assistant" | "tool"; content: string | null; tool_calls?: ToolCall[]; tool_call_id?: string };
 type ToolCall = { id: string; type: "function"; function: { name: string; arguments: string } };
 
-const catalog = PRODUCTS.map((p) => `- ${p.id}: ${p.name} (${p.desc}); מידות: ${p.sizes.join(", ")}; מינימום ${p.minQty}`).join("\n");
+// compact catalog for the model: ids it must pass back, human titles to talk with
+const catalog = PRODUCTS.map((p) => [
+  `- ${p.id}: ${p.name} — ${p.desc}. כמות ${p.qty.min}–${p.qty.max} (קפיצות ${p.qty.step}, מומלץ: ${p.qty.presets.join("/")}). ייצור: ${p.production.join("/")}`,
+  ...p.options.map((o) => `    ${o.kind === "split" ? "split" : `options.${o.id}`} (${o.title}): ${o.values.map((v) => `${v.id}=${v.title}`).join(", ")}`),
+].join("\n")).join("\n");
 
 const SYSTEM = `אתה נציג המכירות של "דפוס" — בית דפוס דיגיטלי. ענה תמיד בעברית, קצר וחם, בטקסט רגיל בלי Markdown (בלי כוכביות או סולמיות).
-המטרה: לעזור ללקוח לבחור מוצר, לתת הצעת מחיר ולסגור הזמנה עם משלוח עד הבית.
-קטלוג:
+המטרה: לעזור ללקוח לבחור מוצרים ואפשרויות, לתת הצעת מחיר ולסגור הזמנה.
+קטלוג (מזהים באנגלית — השתמש בהם רק בכלים, מול הלקוח דבר בשמות בעברית):
 ${catalog}
-משלוח עד הבית ${SHIPPING}₪, חינם מעל ${FREE_SHIPPING_FROM}₪ לפני מע״מ. זמן אספקה 3–5 ימי עסקים. תשלום מתבצע בטלפון לאחר אישור הגרפיקה.
+זמני ייצור (ימי עסקים): ${Object.entries(PRODUCTION).map(([k, v]) => `${k}=${v.label} ${v.days} ימים${v.pct ? ` (${v.pct > 0 ? "+" : ""}${v.pct * 100}%)` : ""}`).join(", ")}. ברירת מחדל standard.
+משלוח: ${Object.entries(SHIPPING).map(([k, v]) => `${k}=${v.label} ${v.price ? v.price + "₪" : "חינם"}${v.freeFrom ? ` (חינם מעל ${v.freeFrom}₪ לפני מע״מ)` : ""}`).join(", ")}.
+תשלום: טלפוני — נציג מתקשר תוך יום עסקים לאחר בדיקת הגרפיקה.
 כללים:
-- לעולם אל תמציא מחיר. כל מחיר מגיע רק מהכלי get_quote.
-- לפני place_order: הצג סיכום (מוצר, מידה, כמות, סה״כ כולל מע״מ ומשלוח, שם, טלפון נייד, כתובת ועיר) ובקש אישור מפורש מהלקוח. רק אחרי "כן"/אישור — הפעל place_order.
-- אם הלקוח צירף קובץ גרפיקה תופיע הודעה "[קובץ גרפיקה צורף: <id>]" — העבר את ה-id בשדה artwork. אם אין קובץ, אמור שאפשר לצרף בכפתור 📎 או לשלוח אחר כך.`;
+- לעולם אל תמציא מחיר. כל מחיר מגיע רק מהכלי get_quote. אפשרות שלא צוינה מקבלת ברירת מחדל (הערך הראשון) — ציין ללקוח מה נבחר.
+- בביגוד אפשר לחלק כמות בין מידות בשדה split, למשל {"M":5,"L":3}.
+- לפני place_order: הצג סיכום (פריטים עם אפשרויות וכמויות, שיטת משלוח, סה״כ כולל מע״מ, שם, טלפון נייד, וכתובת ועיר אם זה לא איסוף עצמי) ובקש אישור מפורש. רק אחרי "כן"/אישור — הפעל place_order.
+- אם הלקוח צירף קובץ גרפיקה תופיע הודעה "[קובץ גרפיקה צורף: <id>]" — העבר את ה-id בשדה artwork של הפריט המתאים. אם אין קובץ, אמור שאפשר לצרף בכפתור 📎 או לשלוח אחר כך.`;
 
+const item = { type: "object", required: ["productId"], properties: {
+  productId: { type: "string", enum: PRODUCTS.map((p) => p.id) }, quantity: { type: "integer" },
+  options: { type: "object", additionalProperties: { type: "string" }, description: "מזהה אפשרות → מזהה ערך" },
+  split: { type: "object", additionalProperties: { type: "integer" }, description: "ביגוד: מידה → כמות" },
+  production: { type: "string", enum: Object.keys(PRODUCTION) }, artwork: { type: "string" },
+} };
+const shipping = { type: "string", enum: Object.keys(SHIPPING) };
 const tools = [
-  { type: "function", function: { name: "get_quote", description: "הצעת מחיר למוצר וכמות", parameters: { type: "object", required: ["productId", "quantity"], properties: { productId: { type: "string", enum: PRODUCTS.map((p) => p.id) }, quantity: { type: "integer" }, size: { type: "string" } } } } },
-  { type: "function", function: { name: "place_order", description: "ביצוע הזמנה סופית — רק אחרי אישור מפורש של הלקוח", parameters: { type: "object", required: ["productId", "quantity", "name", "phone", "address", "city"], properties: { productId: { type: "string", enum: PRODUCTS.map((p) => p.id) }, quantity: { type: "integer" }, size: { type: "string" }, name: { type: "string" }, phone: { type: "string" }, email: { type: "string" }, address: { type: "string" }, city: { type: "string" }, notes: { type: "string" }, artwork: { type: "string" } } } } },
+  { type: "function", function: { name: "get_quote", description: "הצעת מחיר לפריט אחד או יותר כולל משלוח ומע״מ", parameters: { type: "object", required: ["items"], properties: { items: { type: "array", items: item }, shipping } } } },
+  { type: "function", function: { name: "place_order", description: "ביצוע הזמנה סופית — רק אחרי אישור מפורש של הלקוח", parameters: { type: "object", required: ["items", "shipping", "name", "phone"], properties: {
+    items: { type: "array", items: item }, shipping, name: { type: "string" }, phone: { type: "string" }, email: { type: "string" }, address: { type: "string" }, city: { type: "string" }, notes: { type: "string" } } } } },
 ];
 
 async function runTool(name: string, args: Record<string, unknown>) {
   try {
-    if (name === "get_quote") return quote(String(args.productId), Number(args.quantity), args.size as string);
+    const items = (Array.isArray(args.items) ? args.items : []) as LineInput[];
+    if (name === "get_quote") {
+      const lines = items.map((i) => priceLine(i));
+      return { items: lines.map((l) => ({ product: l.productName, quantity: l.quantity, chosen: l.labels, production: `${l.productionLabel} ${l.productionDays} ימי עסקים`, unitInclVat: withVat(l.unitPrice), lineInclVat: withVat(l.subtotal) })), ...totals(lines, args.shipping as string) };
+    }
     if (name === "place_order") {
-      const { productId, quantity, size, artwork, ...customer } = args;
-      const o = await createOrder({ productId: String(productId), quantity: Number(quantity), size: size as string, artwork: artwork as string, customer, source: "chat" });
-      return { ok: true, orderId: o.id, total: o.quote.total };
+      const customer = { ...args };
+      delete customer.items; delete customer.shipping;
+      const o = await createOrder({ items, shipping: args.shipping as string, customer, source: "chat" });
+      return { ok: true, orderId: o.id, total: o.totals.total };
     }
     return { error: "unknown tool" };
   } catch (e) {
