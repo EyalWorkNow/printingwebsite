@@ -1,3 +1,4 @@
+import ADMIN_HE, { type AdminDict } from "../i18n/admin/he.ts";
 // Single source of truth for products, options and pricing — used by the site, the cart, the server AND the AI chat.
 // Model: every product has base tier prices, and every option value may add its own per-unit tier price.
 //   unit  = round2((base(q) + Σ value(q)) × (1 + production surcharge))
@@ -215,7 +216,9 @@ export const CATALOG_TEXT = {
 export type CatalogText = typeof CATALOG_TEXT;
 export const fill = (s: string, v: Record<string, string | number>) => s.replace(/\{(\w+)\}/g, (_, k) => String(v[k] ?? ""));
 
-export type Catalog = { categories: Category[]; products: Product[]; production: Record<ProductionId, Production>; shipping: Record<ShippingId, Shipping>; market?: Market; t?: CatalogText };
+/** Owner's per-market tweaks on top of the calibrated market prices (src/i18n/markets.ts): exchange rate, whole-market %, per-product %. */
+export type MarketAdjust = { fx?: number; adj?: number; products?: Record<string, number> };
+export type Catalog = { categories: Category[]; products: Product[]; production: Record<ProductionId, Production>; shipping: Record<ShippingId, Shipping>; market?: Market; t?: CatalogText; markets?: Record<string, MarketAdjust> };
 const mk = (cat?: Pick<Catalog, "market">) => cat?.market ?? HE_MARKET;
 const tx = (cat?: Pick<Catalog, "t">) => cat?.t ?? CATALOG_TEXT;
 /** Built-in catalog. The live one is data/catalog.json (edited in /admin/catalog) — see catalog-store.ts. */
@@ -392,38 +395,41 @@ export function addBusinessDays(from: Date, n: number, weekend: number[] = HE_MA
 const tiersOk = (t: Tier[] | undefined, signed = false) =>
   !t || (t.every(([f, u], i) => Number.isInteger(f) && f >= 1 && Number.isFinite(u) && (signed || u >= 0) && (i === 0 || f > t[i - 1][0])));
 
+/** Validation message templates (the admin passes its UI language; Hebrew by default). */
+export type CatalogErrText = AdminDict["errors"];
+
 /** Human-readable problems in a catalog (empty = valid). Used live in the admin editor and enforced on save. */
-export function catalogErrors(cat: Catalog): string[] {
+export function catalogErrors(cat: Catalog, m: CatalogErrText = ADMIN_HE.errors): string[] {
   const e: string[] = [];
-  for (const id of PRODUCTION_IDS) { const x = cat.production[id]; if (!x?.label || !Number.isInteger(x.days) || x.days < 0 || !(x.pct > -1 && x.pct <= 5)) e.push(`זמן ייצור "${x?.label ?? id}": ימים ואחוז לא תקינים`); }
-  for (const id of SHIPPING_IDS) { const x = cat.shipping[id]; if (!x?.label || !(x.price >= 0) || !Number.isInteger(x.days) || x.days < 0 || !(x.freeFrom >= 0)) e.push(`משלוח "${x?.label ?? id}": ערכים לא תקינים`); }
-  if (!liveShipping(cat).length) e.push("חייבת להיות לפחות שיטת משלוח פעילה אחת");
+  for (const id of PRODUCTION_IDS) { const x = cat.production[id]; if (!x?.label || !Number.isInteger(x.days) || x.days < 0 || !(x.pct > -1 && x.pct <= 5)) e.push(fill(m.production, { x: x?.label ?? id })); }
+  for (const id of SHIPPING_IDS) { const x = cat.shipping[id]; if (!x?.label || !(x.price >= 0) || !Number.isInteger(x.days) || x.days < 0 || !(x.freeFrom >= 0)) e.push(fill(m.shipping, { x: x?.label ?? id })); }
+  if (!liveShipping(cat).length) e.push(m.noShipping);
   const ids = cat.products.map((p) => p.id);
-  if (new Set(ids).size !== ids.length) e.push("יש שני מוצרים עם אותו מזהה");
-  for (const c of cat.categories) if (!isId(c.id) || !c.name?.trim()) e.push(`קטגוריה "${c.name || c.id}": חסר שם או מזהה לא תקין`);
+  if (new Set(ids).size !== ids.length) e.push(m.dupProduct);
+  for (const c of cat.categories) if (!isId(c.id) || !c.name?.trim()) e.push(fill(m.category, { x: c.name || c.id }));
   for (const p of cat.products) {
-    const n = `"${p.name || p.id}"`;
-    if (!p.name?.trim()) e.push(`${p.id}: חסר שם`);
-    if (!cat.categories.some((c) => c.id === p.category)) e.push(`${n}: קטגוריה לא קיימת`);
+    const n = `"${p.name || p.id}"`, f = (t: string, v: Record<string, string | number> = {}) => fill(t, { n, ...v });
+    if (!p.name?.trim()) e.push(fill(m.noName, { id: p.id }));
+    if (!cat.categories.some((c) => c.id === p.category)) e.push(f(m.noCategory));
     for (const o of p.options) {
-      if (!o.title?.trim()) e.push(`${n}: אפשרות בלי שם`);
-      if (!o.values.length) e.push(`${n} › ${o.title || "אפשרות"}: חייב להיות לפחות ערך אחד`);
-      if (new Set(o.values.map((v) => v.id)).size !== o.values.length) e.push(`${n} › ${o.title}: ערכים כפולים`);
+      if (!o.title?.trim()) e.push(f(m.optionNoName));
+      if (!o.values.length) e.push(f(m.optionEmpty, { o: o.title || m.optionOption }));
+      if (new Set(o.values.map((v) => v.id)).size !== o.values.length) e.push(f(m.optionDup, { o: o.title }));
     }
-    if (new Set(p.options.map((o) => o.id)).size !== p.options.length) e.push(`${n}: אפשרויות כפולות`);
+    if (new Set(p.options.map((o) => o.id)).size !== p.options.length) e.push(f(m.optionsDup));
     const { min, max, step, presets } = p.qty;
-    if (!(Number.isInteger(min) && min >= 1 && Number.isInteger(max) && max >= min && Number.isInteger(step) && step >= 1)) e.push(`${n}: מינימום/מקסימום/קפיצה לא תקינים`);
-    if (!presets.length || presets.some((q, i) => !Number.isInteger(q) || q < min || q > max || (i && q <= presets[i - 1]))) e.push(`${n}: כמויות מוצעות חייבות להיות בעלייה ובין המינימום למקסימום`);
-    if (!p.base.length || !tiersOk(p.base)) e.push(`${n}: מדרגות מחיר בסיס לא תקינות (כמות שלמה בעלייה, מחיר ≥ 0)`);
-    if (!(Number.isFinite(p.setup ?? 0) && (p.setup ?? 0) >= 0)) e.push(`${n}: עלות הכנה לא תקינה`);
-    if (!p.production.length) e.push(`${n}: יש לבחור לפחות זמן ייצור אחד`);
+    if (!(Number.isInteger(min) && min >= 1 && Number.isInteger(max) && max >= min && Number.isInteger(step) && step >= 1)) e.push(f(m.qty));
+    if (!presets.length || presets.some((q, i) => !Number.isInteger(q) || q < min || q > max || (i && q <= presets[i - 1]))) e.push(f(m.presets));
+    if (!p.base.length || !tiersOk(p.base)) e.push(f(m.base));
+    if (!(Number.isFinite(p.setup ?? 0) && (p.setup ?? 0) >= 0)) e.push(f(m.setup));
+    if (!p.production.length) e.push(f(m.noProduction));
     for (const o of p.options) for (const v of o.values) {
-      if (!v.title?.trim()) e.push(`${n} › ${o.title}: ערך בלי שם`);
-      if (!tiersOk(v.tiers, true)) e.push(`${n} › ${o.title} › ${v.title}: מדרגות תוספת לא תקינות`);
+      if (!v.title?.trim()) e.push(f(m.valueNoName, { o: o.title }));
+      if (!tiersOk(v.tiers, true)) e.push(f(m.valueTiers, { o: o.title, v: v.title }));
     }
     if (p.active === false || e.length) continue;
     for (const q of presets) for (const pr of p.production) // every default combination must price above zero
-      try { priceLine(cat, { productId: p.id, quantity: q, production: pr }); } catch (err) { e.push(`${n} (${q} יח׳): ${(err as Error).message}`); break; }
+      try { priceLine(cat, { productId: p.id, quantity: q, production: pr }); } catch (err) { e.push(f(m.priceAt, { q, x: (err as Error).message })); break; }
   }
   return e;
 }

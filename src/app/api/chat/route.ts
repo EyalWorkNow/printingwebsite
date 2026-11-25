@@ -1,7 +1,6 @@
 import { PRODUCTION_IDS, liveProducts, liveShipping, priceLine, totals, withVat, money, type Catalog, type LineInput } from "@/lib/catalog";
 import { getCatalog, localized, readCatalog } from "@/lib/catalog-store";
-import { createOrder, emailOrderToCustomer, type Order } from "@/lib/orders";
-import { readJson } from "@/lib/storage";
+import { createOrder, emailOrderToCustomer, getOrder } from "@/lib/orders";
 import { DEFAULT_LOCALE, LOCALE_META, isLocale, type Locale } from "@/i18n/config";
 import { DICTS } from "@/i18n/dicts";
 
@@ -102,7 +101,7 @@ async function runTool(cat: Catalog, lang: Locale, cart: LineInput[], name: stri
     }
     if (name === "order_status") {
       const id = String(args.orderId ?? "").toUpperCase().trim();
-      const o = /^DP-[A-Z0-9]+$/.test(id) ? await readJson<Order>(`orders/${id}.json`) : null;
+      const o = await getOrder(id);
       const last = (x: unknown) => String(x ?? "").replace(/\D/g, "").slice(-9);
       if (!o || last(o.customer.phone) !== last(args.phone)) return { error: "order not found for this phone number" };
       return { orderId: o.id, status: STATUS_EN[o.status] ?? o.status, placed: o.createdAt.slice(0, 10), items: o.items.map((l) => `${l.quantity} × ${l.productName}`), shipping: o.totals.shippingLabel };

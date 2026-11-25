@@ -27,13 +27,15 @@ export type MarketPricing = {
   level: number;                                // default price level vs Israel (1 = same purchasing price)
   byProduct?: Record<string, number>;           // per-product level (overrides `level`)
   shipping: Partial<Record<ShippingId, { price?: number; freeFrom?: number; days?: number; active?: boolean }>>;
+  adj?: number;                                 // owner's whole-market adjustment (0.1 = +10%)
+  productAdj?: Record<string, number>;          // owner's per-product adjustment
 };
 
 const scale = (t: Tier[] | undefined, k: number): Tier[] | undefined => t?.map(([f, u]) => [f, u * k]);
 
 export function localizeCatalog(cat: Catalog, strings: Record<string, string>, fallback: Record<string, string>, t: CatalogText, pricing?: MarketPricing): Catalog {
   const s = (key: string, he: string) => strings[key] ?? fallback[key] ?? he;
-  const k = (id: string) => (pricing ? pricing.fx * (pricing.byProduct?.[id] ?? pricing.level) : 1);
+  const k = (id: string) => (pricing ? pricing.fx * (pricing.byProduct?.[id] ?? pricing.level) * (1 + (pricing.adj ?? 0)) * (1 + (pricing.productAdj?.[id] ?? 0)) : 1);
   return {
     categories: cat.categories.map((c) => ({ ...c, name: s(`cat.${c.id}.name`, c.name), desc: s(`cat.${c.id}.desc`, c.desc) })),
     products: cat.products.map((p) => ({

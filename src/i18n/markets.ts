@@ -1,5 +1,6 @@
 import type { Locale } from "./config";
 import type { MarketPricing } from "./localize";
+import type { MarketAdjust } from "@/lib/catalog";
 
 // Sample prices per market, calibrated 2026-11-25 against the regular (non-Black-Friday) prices of each market's leading
 // online print shop (Vistaprint .com/.de/.fr/.es/.it; Printo.ae + TheMerchList for the UAE) — see docs/market-prices.md.
@@ -37,3 +38,9 @@ export const MARKETS: Record<Exclude<Locale, "he">, MarketPricing> = {
     byProduct: { ...paper(0.49, 1.27, 1.2, 1, 1.07), ...signs(1.6, 2.5, 0.55, 2), ...wear(1.4), ...promo(0.9, 1, 2, 1.2) },
     shipping: { pickup: { active: false }, home: { price: 25, freeFrom: 238, days: 2 }, express: { price: 50, days: 1 } } },
 };
+
+/** A market's pricing with the owner's adjustments from the admin (catalog.markets[lang]) applied. */
+export function marketPricing(lang: Exclude<Locale, "he">, a?: MarketAdjust): MarketPricing {
+  const m = MARKETS[lang];
+  return a ? { ...m, fx: a.fx && a.fx > 0 ? a.fx : m.fx, adj: a.adj, productAdj: a.products } : m;
+}
