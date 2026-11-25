@@ -3,7 +3,13 @@ export const byName = (re: RegExp) => { const k = Object.keys(process.env).sort(
 
 /** Postgres URL: DATABASE_URL / POSTGRES_URL (pooled; Supabase + Neon integrations), with or without a prefix. */
 export const DB_URL = process.env.DATABASE_URL || process.env.POSTGRES_URL || byName(/(^|_)POSTGRES_URL$/) || byName(/(^|_)DATABASE_URL$/);
-/** Vercel Blob read/write token, with or without a prefix. */
-export const BLOB_TOKEN = process.env.BLOB_READ_WRITE_TOKEN || byName(/_BLOB_READ_WRITE_TOKEN$/);
-/** Public site address for links in emails, sitemap and metadata. SITE_URL when set, else the Vercel production domain. */
-export const SITE_URL = (process.env.SITE_URL || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "http://localhost:3007")).replace(/\/+$/, "");
+/** Public site address for links in emails, sitemap and metadata: SITE_URL when it's a valid address (https:// added if
+ *  missing), else the Vercel production domain, else localhost. Never throws — a bad value must not break the build. */
+export const SITE_URL = (() => {
+  for (const v of [process.env.SITE_URL, process.env.VERCEL_PROJECT_PRODUCTION_URL]) {
+    const t = v?.trim();
+    if (!t) continue;
+    try { return new URL(/^https?:\/\//.test(t) ? t : `https://${t}`).origin; } catch {}
+  }
+  return "http://localhost:3007";
+})();
