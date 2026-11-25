@@ -55,7 +55,7 @@ export default async function ShopLayout({ children }: LayoutProps<"/[lang]">) {
               {legal.map(([h, t]) => <Link key={h} href={href(h)} className="py-1.5 hover:text-foreground">{t}</Link>)}
             </nav>
           </div>
-          <div className="mt-8 flex justify-end border-t pt-6"><LanguagePicker /></div>
+          <div className="mt-8 border-t pt-6"><LanguagePicker /></div>
         </footer>
         <Chat />
         <A11yMenu />
