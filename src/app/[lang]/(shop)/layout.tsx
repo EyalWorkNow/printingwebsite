@@ -19,10 +19,10 @@ export default async function ShopLayout({ children }: LayoutProps<"/[lang]">) {
     <I18nProvider lang={lang} d={d}>
       <CatalogProvider value={cat}>
         <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:start-3 focus:z-50 focus:rounded-lg focus:bg-foreground focus:px-4 focus:py-2 focus:text-background">{d.nav.skip}</a>
-        <header className="sticky top-0 z-40 border-b bg-background/85 backdrop-blur">
-          <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2.5 md:flex-nowrap md:gap-4 md:py-2">
-            <Link href={href("/")} className="me-auto text-xl font-bold tracking-tight md:me-0">{brand}<span className="text-muted-foreground">.</span></Link>
-            <div className="order-last flex w-full justify-center md:order-none md:w-auto md:flex-1"><ShopNav /></div>
+        <header className="pointer-events-none sticky top-0 z-40">
+          <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2.5 *:pointer-events-auto md:flex-nowrap md:gap-4 md:py-2">
+            <Link href={href("/")} className="me-auto rounded-full border bg-background/55 px-4 py-2 text-xl font-bold tracking-tight shadow-sm backdrop-blur-md md:me-0">{brand}<span className="text-muted-foreground">.</span></Link>
+            <div className="order-last flex w-full justify-center pointer-events-none! md:order-none md:w-auto md:flex-1"><ShopNav /></div>
             <ShopActions />
           </div>
         </header>

@@ -34,7 +34,7 @@ const BRAND = { light: [0.698, 0.239, 0.541] as RGB, dark: [0.867, 0.482, 0.733]
 
 const STYLES = `
 .nimbus-nav{--n-tint:color-mix(in oklab,var(--background) 55%,transparent);--n-fg:var(--foreground);--n-fg-soft:color-mix(in oklab,var(--foreground) 62%,transparent);--n-rim:rgba(255,255,255,.7);
-  position:relative;display:inline-flex;align-items:center;gap:2px;padding:5px;border-radius:999px;isolation:isolate;max-width:100%;
+  position:relative;pointer-events:auto;display:inline-flex;align-items:center;gap:2px;padding:5px;border-radius:999px;isolation:isolate;max-width:100%;
   -webkit-font-smoothing:antialiased;user-select:none;-webkit-tap-highlight-color:transparent}
 .dark .nimbus-nav{--n-rim:rgba(255,255,255,.22)}
 .nimbus-glass{position:absolute;inset:0;border-radius:inherit;z-index:-2;overflow:hidden;background:var(--n-tint);
