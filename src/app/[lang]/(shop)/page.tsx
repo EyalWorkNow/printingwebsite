@@ -1,52 +1,31 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Upload, Eye, Truck, MessageCircle, ArrowLeft, Clock, BadgeCheck, Calculator } from "lucide-react";
-import { fromPrice, money, num, liveProducts, PRODUCTION_IDS } from "@/lib/catalog";
+import { Upload, Eye, Truck, MessageCircle, ArrowLeft } from "lucide-react";
+import { fromPrice, money, num, liveProducts } from "@/lib/catalog";
 import { getLocalizedCatalog } from "@/lib/catalog-store";
 import { getI18n } from "@/i18n/server";
 import { Mockup } from "@/components/mockup";
 import { ProductCard } from "@/components/product-card";
 import { GlowCard } from "@/components/glow-card";
+import { HeroMarquee } from "@/components/hero-marquee";
 import { FaqList } from "@/components/faq-list";
 
 const STEP_ICONS = [Eye, Upload, Truck];
 const POPULAR = ["tshirt", "hoodie", "mug", "roll-up", "sticker", "tote", "notebook", "pen", "jacket", "charger"];
 
 export default async function Home() {
-  const { lang, d, href, f } = await getI18n();
+  const { lang, d, href, f, dir } = await getI18n();
   const h = d.home;
   const cat = await getLocalizedCatalog(lang);
   const m = money(cat);
   const products = liveProducts(cat);
   const popular = POPULAR.flatMap((id) => products.filter((p) => p.id === id)).slice(0, 6);
-  const fastest = Math.min(...PRODUCTION_IDS.map((id) => cat.production[id].days));
-  const from = (id: string) => { const p = products.find((x) => x.id === id); return p ? m(fromPrice(cat, p)) : undefined; };
 
   return (
     <div className="space-y-24">
-      {/* hero */}
-      <section className="grid items-center gap-10 pt-2 lg:grid-cols-[1fr_1.15fr]">
-        <div className="space-y-7 text-center lg:text-start">
-          <h1 className="text-4xl leading-[1.1] font-bold text-balance md:text-6xl">{h.heroTitle1}<br /><span className="bg-gradient-to-l from-[#b23d8a] via-[#9a6200] to-[#3f7020] bg-clip-text text-transparent dark:from-[#dd7bbb] dark:via-[#d79f1e] dark:to-[#5a922c]">{h.heroTitle2}</span></h1>
-          <p className="mx-auto max-w-xl text-muted-foreground md:text-lg lg:mx-0">{h.heroText}</p>
-          <div className="flex flex-wrap justify-center gap-3 lg:justify-start">
-            <Link href={href("/products")} className="rounded-lg bg-foreground px-6 py-3 font-medium text-background">{h.ctaProducts}</Link>
-            <a href="#chat" className="flex items-center gap-2 rounded-lg border px-6 py-3 font-medium text-foreground/80 hover:border-foreground/40"><MessageCircle className="h-4 w-4" /> {h.ctaChat}</a>
-          </div>
-          <dl className="mx-auto grid max-w-lg grid-cols-3 gap-3 pt-2 text-center lg:mx-0 lg:text-start">
-            {[[Clock, fastest === 1 ? h.statFastValue1 : f(h.statFastValueN, { n: fastest }), h.statFast], [Calculator, f(h.statProductsValue, { n: products.length }), h.statProducts], [BadgeCheck, h.statCheckValue, h.statCheck]].map(([I, v, t]) => {
-              const Icon = I as typeof Clock;
-              return <div key={t as string} className="space-y-1"><dt className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground lg:justify-start"><Icon className="h-3.5 w-3.5" />{t as string}</dt><dd className="font-semibold">{v as string}</dd></div>;
-            })}
-          </dl>
-        </div>
-
-        <div className="grid grid-cols-2 grid-rows-2 gap-3 md:gap-4">
-          <HeroTile src="/img/set-apparel.webp" alt={h.tileApparelAlt} href={href("/c/apparel")} label={h.tileApparel} price={from("tshirt")} fromLabel={h.from} className="row-span-2" priority sizes="(min-width: 1024px) 28vw, 50vw" />
-          <HeroTile src="/img/set-office.webp" alt={h.tilePromoAlt} href={href("/c/promo")} label={h.tilePromo} price={from("pen")} fromLabel={h.from} sizes="(min-width: 1024px) 20vw, 50vw" />
-          <HeroTile src="/img/rollup.webp" alt={h.tileSignsAlt} href={href("/c/signs")} label={h.tileSigns} price={from("sticker")} fromLabel={h.from} sizes="(min-width: 1024px) 20vw, 50vw" />
-        </div>
-      </section>
+      <HeroMarquee tagline={d.footer.tagline} title1={h.heroTitle1} title2={h.heroTitle2} text={h.heroText} cta={h.ctaProducts} ctaHref={href("/products")} chat={h.ctaChat}
+        fromLabel={d.product.cardFrom} perUnit={`${d.product.perUnit} ${d.vat.short}`} details={h.heroDetails} dir={dir}
+        items={[...popular, ...products.filter((p) => !popular.includes(p))].flatMap((p) => p.image ? [{ id: p.id, name: p.name, image: p.image, price: m(fromPrice(cat, p)), href: href(`/p/${p.id}`) }] : [])} />
 
       {/* categories */}
       <section id="categories" className="scroll-mt-24 space-y-6">
@@ -121,16 +100,5 @@ export default async function Home() {
         <FaqList items={d.faq.items.slice(0, 6)} />
       </section>
     </div>
-  );
-}
-
-function HeroTile({ src, alt, href, label, price, fromLabel, className = "", priority, sizes }: { src: string; alt: string; href: string; label: string; price?: string; fromLabel: string; className?: string; priority?: boolean; sizes: string }) {
-  return (
-    <Link href={href} className={`group block ${className}`}>
-      <GlowCard className="p-1.5 md:p-2" inner="relative min-h-40 p-0 md:min-h-52">
-        <Image src={src} alt={alt} fill priority={priority} sizes={sizes} className="object-cover transition duration-700 group-hover:scale-105" />
-        <span className="absolute start-3 bottom-3 rounded-full bg-black/75 px-3 py-1 text-xs text-white backdrop-blur">{label}{price && <span className="text-white/70"> · {fromLabel.replace("{price}", price)}</span>}</span>
-      </GlowCard>
-    </Link>
   );
 }

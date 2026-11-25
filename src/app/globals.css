@@ -123,6 +123,7 @@
   }
   body {
     @apply bg-background text-foreground;
+    overflow-x: clip; /* full-bleed sections (hero strip) use 100vw, which includes the scrollbar */
   }
   html {
     @apply font-sans;
@@ -169,3 +170,6 @@ html:not(.dark) .glow {
     repeating-conic-gradient(from 236.84deg at 50% 50%, #b23d8a 0%, #9a6200 calc(25% / var(--repeating-conic-gradient-times)),
       #3f7020 calc(50% / var(--repeating-conic-gradient-times)), #2f5f80 calc(75% / var(--repeating-conic-gradient-times)), #b23d8a calc(100% / var(--repeating-conic-gradient-times))) !important;
 }
+
+/* home hero product strip (components/hero-marquee.tsx): the list holds the items twice, so -50% is one seamless loop */
+@keyframes hero-marquee { to { transform: translateX(-50%); } }
