@@ -62,13 +62,13 @@ export function A11yMenu() {
   return (
     <>
       <button ref={btn} type="button" onClick={() => setOpen(!open)} aria-expanded={open} aria-controls="a11y-panel" aria-label={t.menu}
-        className="a11y-keep fixed right-5 bottom-[calc(1.25rem+var(--fab-offset,0rem))] z-50 flex h-14 w-14 items-center justify-center rounded-full border border-white/10 bg-foreground text-background shadow-lg md:bottom-5">
+        className="a11y-keep fixed right-5 bottom-[calc(1.25rem+var(--fab-offset,0rem)+var(--dock-h,0rem))] z-50 flex h-14 w-14 items-center justify-center rounded-full border border-white/10 bg-foreground text-background shadow-lg md:bottom-5">
         <Accessibility className="h-7 w-7" />
         {active && <span className="absolute -top-0.5 -start-0.5 h-3.5 w-3.5 rounded-full border-2 border-background bg-[#5a922c]" aria-hidden />}
       </button>
       {open && (
         <div ref={panel} id="a11y-panel" role="dialog" aria-modal="false" aria-label={t.settings}
-          className="a11y-keep fixed right-3 bottom-[calc(5.5rem+var(--fab-offset,0rem))] z-50 w-[min(22rem,calc(100vw-1.5rem))] md:bottom-24">
+          className="a11y-keep fixed right-3 bottom-[calc(5.5rem+var(--fab-offset,0rem)+var(--dock-h,0rem))] z-50 w-[min(22rem,calc(100vw-1.5rem))] md:bottom-24">
           <GlowCard className="h-auto bg-background shadow-2xl" inner="max-h-[min(70vh,36rem)] space-y-4 overflow-y-auto bg-background p-4">
             <div className="flex items-center justify-between">
               <h2 className="flex items-center gap-2 font-semibold"><Accessibility className="h-5 w-5" /> {t.title}</h2>

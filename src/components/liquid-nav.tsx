@@ -75,6 +75,7 @@ const STYLES = `
 .nimbus-nav[data-compact] .nimbus-item{padding:0 11px}
 .nimbus-nav[data-compact] .nimbus-label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .nv-badge{position:absolute;top:-9px;inset-inline-end:-13px;min-width:16px;height:16px;padding:0 4px;box-shadow:0 0 0 2px var(--background);border-radius:999px;background:var(--n-fg);color:var(--background);font-size:10px;font-weight:600;line-height:16px;text-align:center}
+@media (max-width:767px){.nv-dock .nimbus-nav{padding:5.6px}.nv-dock .nimbus-item{height:42.5px;padding:0 13.5px}.nv-dock .nv-ico svg{width:20px;height:20px}} /* bottom dock: 12% larger */
 @media (prefers-reduced-motion:reduce){.nv-ico svg,.nv-ico::before,.nv-ico::after{animation:none!important;transition:none}}
 `;
 

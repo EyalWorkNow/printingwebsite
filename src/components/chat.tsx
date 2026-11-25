@@ -72,11 +72,11 @@ export function Chat() {
 
   return (
     <>
-      <button onClick={() => setOpen(!open)} aria-label={open ? t.close : t.open} className="fixed bottom-[calc(1.25rem+var(--fab-offset,0rem))] left-5 z-50 flex h-14 w-14 md:bottom-5 items-center justify-center rounded-full bg-foreground text-background shadow-lg">
+      <button onClick={() => setOpen(!open)} aria-label={open ? t.close : t.open} className="fixed bottom-[calc(1.25rem+var(--fab-offset,0rem)+var(--dock-h,0rem))] left-5 z-50 flex h-14 w-14 md:bottom-5 items-center justify-center rounded-full bg-foreground text-background shadow-lg">
         {open ? <X /> : <MessageCircle />}
       </button>
       {open && (
-        <div className="fixed bottom-[calc(6rem+var(--fab-offset,0rem))] left-4 z-50 w-[calc(100vw-2rem)] max-w-sm rounded-3xl border bg-background p-2 md:bottom-24">
+        <div className="fixed bottom-[calc(6rem+var(--fab-offset,0rem)+var(--dock-h,0rem))] left-4 z-50 w-[calc(100vw-2rem)] max-w-sm rounded-3xl border bg-background p-2 md:bottom-24">
           <GlowingEffect spread={40} glow disabled={false} proximity={64} inactiveZone={0.01} />
           <div className="relative flex h-[32rem] max-h-[70vh] flex-col overflow-hidden rounded-2xl border-[0.75px] bg-card">
             <div className="border-b p-4 font-semibold">{t.title} <span className="text-xs font-normal text-muted-foreground">· AI</span></div>

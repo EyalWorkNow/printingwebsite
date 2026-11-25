@@ -173,3 +173,9 @@ html:not(.dark) .glow {
 
 /* home hero product strip (components/hero-marquee.tsx): the list holds the items twice, so -50% is one seamless loop */
 @keyframes hero-marquee { to { transform: translateX(-50%); } }
+
+/* mobile: the category nav is docked at the bottom (layout .nv-dock) — floating buttons sit above it, the page ends above it */
+@media (max-width: 767px) {
+  html:has(.nv-dock) { --dock-h: 4.5rem; }
+  html:has(.nv-dock) body { padding-bottom: calc(var(--dock-h) + env(safe-area-inset-bottom)); }
+}
