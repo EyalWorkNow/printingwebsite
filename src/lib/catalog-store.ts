@@ -1,5 +1,6 @@
 import { cacheTag } from "next/cache";
-import { DEFAULT_CATALOG, type Catalog } from "./catalog";
+import { DEFAULT_CATALOG, fill, money, type Catalog } from "./catalog";
+import type { Locale } from "@/i18n/config";
 import { read, write, writeJson } from "./storage";
 
 // The live catalog: catalog.json in storage (Blob or data/) if the admin saved one, otherwise the built-in defaults.
@@ -11,6 +12,23 @@ export async function getCatalog(): Promise<Catalog> {
   "use cache";
   cacheTag(CATALOG_TAG);
   return readCatalog();
+}
+
+/** The live catalog for a locale: translated texts + that market's prices, currency, VAT and shipping. */
+export async function getLocalizedCatalog(lang: Locale): Promise<Catalog> {
+  "use cache";
+  cacheTag(CATALOG_TAG);
+  return localized(await readCatalog(), lang);
+}
+
+/** Pure part (also used by the chat/order API, which can't use the cache): base catalog → locale's catalog. */
+export async function localized(base: Catalog, lang: Locale): Promise<Catalog> {
+  const [{ DICTS, CATALOG_STRINGS }, { MARKETS }, { localizeCatalog }] = await Promise.all([import("@/i18n/dicts"), import("@/i18n/markets"), import("@/i18n/localize")]);
+  const d = DICTS[lang], pricing = lang === "he" ? undefined : MARKETS[lang];
+  const cat = localizeCatalog(base, CATALOG_STRINGS[lang], CATALOG_STRINGS.en, d.catalog, pricing);
+  const fmt = money(cat);
+  for (const [id, sh] of Object.entries(cat.shipping)) sh.desc = fill(d.shipDesc[id as keyof typeof d.shipDesc] ?? sh.desc, { freeFrom: fmt(sh.freeFrom) });
+  return cat;
 }
 
 /** Uncached read — for the admin editor and for saving. */

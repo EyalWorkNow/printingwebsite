@@ -4,6 +4,9 @@
 // The "product-art" scenario uploads a small test image named low.png from the working directory.
 import { chromium } from "playwright";
 const B = "http://localhost:3007";
+// PREFIX=/en (etc.) audits that language; only scenarios that don't click Hebrew-labelled buttons run there
+const P = process.env.PREFIX ?? "";
+const LANG_SAFE = new Set(["home", "products", "category", "product-1", "empty-cart", "faq", "about", "terms", "accessibility", "404"]);
 const ADMIN = { username: "123123123", password: "123123123" };
 const VIEWPORTS = [["mobile", 375, 812], ["tablet", 820, 1100], ["desktop", 1440, 900]];
 const THEMES = ["light", "dark"];
@@ -59,23 +62,23 @@ const CHECK = () => {
 // --- page scenarios ------------------------------------------------------------
 const addToCart = async (p, id) => { await p.goto(B + "/p/" + id); await p.waitForLoadState("networkidle"); for (let i = 0; i < 3; i++) await p.getByRole("button", { name: "המשך" }).first().click(); await p.getByRole("button", { name: "הוספה לעגלה" }).click(); };
 const SCEN = [
-  ["home", async (p) => p.goto(B + "/")], ["products", async (p) => p.goto(B + "/products")], ["category", async (p) => p.goto(B + "/c/apparel")],
-  ["product-1", async (p) => p.goto(B + "/p/business-card")],
-  ["product-qty", async (p) => { await p.goto(B + "/p/business-card"); await p.getByRole("button", { name: "המשך" }).first().click(); }],
-  ["product-split", async (p) => { await p.goto(B + "/p/tshirt"); await p.getByRole("button", { name: "שחור" }).click(); await p.getByRole("button", { name: "המשך" }).first().click(); }],
-  ["product-prod", async (p) => { await p.goto(B + "/p/mug"); for (let i = 0; i < 2; i++) await p.getByRole("button", { name: "המשך" }).first().click(); }],
-  ["product-art", async (p) => { await p.goto(B + "/p/poster"); for (let i = 0; i < 3; i++) await p.getByRole("button", { name: "המשך" }).first().click(); await p.locator("input[type=file]").setInputFiles("low.png"); await p.waitForSelector("text=הועלה"); await p.locator("details summary").first().click(); }],
+  ["home", async (p) => p.goto(B + P + "/")], ["products", async (p) => p.goto(B + P + "/products")], ["category", async (p) => p.goto(B + P + "/c/apparel")],
+  ["product-1", async (p) => p.goto(B + P + "/p/business-card")],
+  ["product-qty", async (p) => { await p.goto(B + P + "/p/business-card"); await p.getByRole("button", { name: "המשך" }).first().click(); }],
+  ["product-split", async (p) => { await p.goto(B + P + "/p/tshirt"); await p.getByRole("button", { name: "שחור" }).click(); await p.getByRole("button", { name: "המשך" }).first().click(); }],
+  ["product-prod", async (p) => { await p.goto(B + P + "/p/mug"); for (let i = 0; i < 2; i++) await p.getByRole("button", { name: "המשך" }).first().click(); }],
+  ["product-art", async (p) => { await p.goto(B + P + "/p/poster"); for (let i = 0; i < 3; i++) await p.getByRole("button", { name: "המשך" }).first().click(); await p.locator("input[type=file]").setInputFiles("low.png"); await p.waitForSelector("text=הועלה"); await p.locator("details summary").first().click(); }],
   ["product-added", async (p) => { await addToCart(p, "pen"); }],
-  ["cart", async (p) => { await addToCart(p, "cap"); await p.goto(B + "/cart"); }],
-  ["checkout-1", async (p) => { await addToCart(p, "tote"); await p.goto(B + "/checkout"); await p.getByRole("button", { name: "המשך לבחירת משלוח" }).click(); }],
-  ["checkout-pay", async (p) => { await addToCart(p, "tote"); await p.goto(B + "/checkout"); await p.getByPlaceholder("שם מלא").fill("בדיקה"); await p.getByPlaceholder("טלפון נייד").fill("0501234567");
+  ["cart", async (p) => { await addToCart(p, "cap"); await p.goto(B + P + "/cart"); }],
+  ["checkout-1", async (p) => { await addToCart(p, "tote"); await p.goto(B + P + "/checkout"); await p.getByRole("button", { name: "המשך לבחירת משלוח" }).click(); }],
+  ["checkout-pay", async (p) => { await addToCart(p, "tote"); await p.goto(B + P + "/checkout"); await p.getByPlaceholder("שם מלא").fill("בדיקה"); await p.getByPlaceholder("טלפון נייד").fill("0501234567");
     await p.getByRole("button", { name: "המשך לבחירת משלוח" }).click(); await p.getByText("איסוף עצמי", { exact: true }).click(); await p.getByRole("button", { name: "המשך לתשלום" }).click();
     await p.getByRole("button", { name: /^תשלום/ }).click(); }],
-  ["empty-cart", async (p) => p.goto(B + "/cart")],
-  ["faq", async (p) => { await p.goto(B + "/faq"); await p.locator("details summary").first().click(); }], ["about", async (p) => p.goto(B + "/about")],
-  ["contact", async (p) => { await p.goto(B + "/contact"); await p.getByRole("button", { name: "שליחה" }).click(); }],
-  ["terms", async (p) => p.goto(B + "/terms")], ["accessibility", async (p) => p.goto(B + "/accessibility")], ["404", async (p) => p.goto(B + "/no-such-page")],
-  ["chat", async (p) => { await p.goto(B + "/faq"); await p.getByRole("button", { name: /פתיחת צ'אט/ }).click(); }],
+  ["empty-cart", async (p) => p.goto(B + P + "/cart")],
+  ["faq", async (p) => { await p.goto(B + P + "/faq"); await p.locator("details summary").first().click(); }], ["about", async (p) => p.goto(B + P + "/about")],
+  ["contact", async (p) => { await p.goto(B + P + "/contact"); await p.getByRole("button", { name: "שליחה" }).click(); }],
+  ["terms", async (p) => p.goto(B + P + "/terms")], ["accessibility", async (p) => p.goto(B + P + "/accessibility")], ["404", async (p) => p.goto(B + P + "/no-such-page")],
+  ["chat", async (p) => { await p.goto(B + P + "/faq"); await p.getByRole("button", { name: /פתיחת צ'אט/ }).click(); }],
   ["admin-orders", async (p) => { await p.goto(B + "/admin"); await p.locator("details summary").first().click(); }, true],
   ["admin-catalog", async (p) => p.goto(B + "/admin/catalog"), true],
   ["admin-editor", async (p) => p.goto(B + "/admin/catalog/tshirt"), true],
@@ -90,6 +93,7 @@ for (const [vp, w, h] of VIEWPORTS) for (const theme of THEMES) {
   await ctx.addInitScript((t) => { try { localStorage.setItem("theme", t); } catch {} }, theme);
   for (const [name, go] of SCEN) {
     if (only && !name.includes(only)) continue;
+    if (P && !LANG_SAFE.has(name)) continue;
     const p = await ctx.newPage(); const errs = [];
     p.on("pageerror", (e) => errs.push(e.message));
     try { await go(p); await p.waitForLoadState("networkidle"); await p.waitForTimeout(350); } catch (e) { errs.push("scenario: " + e.message.split("\n")[0]); }

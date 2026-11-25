@@ -6,9 +6,10 @@ import Link from "next/link";
 import Image from "next/image";
 import { Upload, Check, Loader2, AlertTriangle, BadgeCheck, ChevronLeft, ChevronRight, ShoppingCart, FileText, Clock } from "lucide-react";
 import {
-  findProduct, normalize, sidesOf, type Side, visibleValues, priceLine, withVat, tierAt, ils, mockupFor, tintFor, printDpi, dpiLevel,
-  addBusinessDays, type ProductionId, type Line,
+  findProduct, normalize, sidesOf, type Side, visibleValues, priceLine, withVat, tierAt, money, num, mockupFor, tintFor, printDpi, dpiLevel,
+  addBusinessDays, HE_MARKET, type ProductionId, type Line,
 } from "@/lib/catalog";
+import { useI18n } from "@/i18n/client";
 import { cart, useToday } from "@/lib/cart";
 import { useCatalog } from "./catalog-provider";
 import { Mockup } from "./mockup";
@@ -17,13 +18,15 @@ import { PHOTO_MOCKUPS, clampPlacement, defaultPlacement, describePlacement, max
 import { GlowCard } from "./glow-card";
 
 type Art = { id?: string; name: string; preview?: string; thumb?: string; px?: [number, number]; aspect?: number; busy?: boolean; error?: string };
-const STEPS = ["מאפיינים", "כמות", "זמן ייצור", "גרפיקה"];
-const chip = (on: boolean) => `rounded-xl border px-3 py-2 text-sm text-right transition ${on ? "border-foreground bg-foreground/5 text-foreground" : "text-muted-foreground hover:border-foreground/40 hover:text-foreground"}`;
+const chip = (on: boolean) => `rounded-xl border px-3 py-2 text-sm text-start transition ${on ? "border-foreground bg-foreground/5 text-foreground" : "text-muted-foreground hover:border-foreground/40 hover:text-foreground"}`;
 const input = "w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none focus:border-foreground/50";
-const fmtDate = (d: Date) => d.toLocaleDateString("he-IL", { weekday: "short", day: "numeric", month: "numeric" });
 
 export function ProductWizard({ productId }: { productId: string }) {
   const cat = useCatalog();
+  const { d, href, f } = useI18n();
+  const w = d.wizard, STEPS = w.steps;
+  const m = money(cat), mk = cat.market ?? HE_MARKET, n = (x: number) => num(cat, x);
+  const fmtDate = (dt: Date) => dt.toLocaleDateString(mk.intl, { weekday: "short", day: "numeric", month: "numeric" });
   const p = findProduct(cat, productId)!;
   const splitOpt = p.options.find((o) => o.kind === "split");
   const today = useToday();
@@ -49,11 +52,11 @@ export function ProductWizard({ productId }: { productId: string }) {
 
   // printed sides (front/back, outside/inside…): each has its own file, placement in cm and DPI check
   const pm = PHOTO_MOCKUPS[p.id];
-  const sides = useMemo(() => sidesOf(p, sel), [p, sel]);
+  const sides = useMemo(() => sidesOf(p, sel, cat.t), [p, sel, cat.t]);
   const side = sides.find((x) => x.id === activeSide) ?? sides[0];
   const [placed, setPlaced] = useState<Record<string, { key: string; p: Placement }>>({});
   const sideInfo = (sd: Side) => {
-    const art = arts[sd.id], zone = pm?.zone(sd, sel), aspect = art?.aspect ?? 1;
+    const art = arts[sd.id], zone = pm?.zone(sd, sel, d.mock), aspect = art?.aspect ?? 1;
     const key = `${art?.preview}|${zone?.label}|${zone?.cm.join("x")}`;
     const place = zone && art?.preview ? (placed[sd.id]?.key === key ? placed[sd.id].p : defaultPlacement(zone, aspect)) : undefined;
     const cm: [number, number] | undefined = place ? [place.w, place.w * aspect] : sd.cm;
@@ -63,20 +66,20 @@ export function ProductWizard({ productId }: { productId: string }) {
   const cur = sideInfo(side);
   const setPlace = (np: Placement) => cur.zone && setPlaced((m) => ({ ...m, [side.id]: { key: cur.key, p: clampPlacement(cur.zone!, cur.aspect, np) } }));
 
-  async function onFile(sd: Side, f?: File) {
-    if (!f) return;
+  async function onFile(sd: Side, file?: File) {
+    if (!file) return;
     const old = arts[sd.id]?.preview;
     if (old) URL.revokeObjectURL(old);
-    const preview = f.type.startsWith("image/") ? URL.createObjectURL(f) : undefined;
-    const put = (a: Art) => setArts((m) => ({ ...m, [sd.id]: a }));
-    put({ name: f.name, preview, busy: true }); setActiveSide(sd.id); setView("mock");
+    const preview = file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined;
+    const put = (a: Art) => setArts((x) => ({ ...x, [sd.id]: a }));
+    put({ name: file.name, preview, busy: true }); setActiveSide(sd.id); setView("mock");
     let px: [number, number] | undefined, thumb: string | undefined, aspect: number | undefined;
     if (preview) {
       const img = new window.Image();
       img.src = preview;
       await img.decode().catch(() => {});
       if (img.naturalWidth) aspect = img.naturalHeight / img.naturalWidth;
-      if (f.type !== "image/svg+xml" && img.naturalWidth) px = [img.naturalWidth, img.naturalHeight]; // SVG is vector — DPI never limits it
+      if (file.type !== "image/svg+xml" && img.naturalWidth) px = [img.naturalWidth, img.naturalHeight]; // SVG is vector — DPI never limits it
       try { // small thumbnail for the cart (the full file stays on the server)
         const c = document.createElement("canvas"), k = Math.min(1, 240 / Math.max(img.naturalWidth || 240, img.naturalHeight || 240));
         c.width = Math.max(1, Math.round((img.naturalWidth || 240) * k)); c.height = Math.max(1, Math.round((img.naturalHeight || 240) * k));
@@ -85,15 +88,15 @@ export function ProductWizard({ productId }: { productId: string }) {
       } catch { /* tainted/unsupported — cart shows the mockup without art */ }
     }
     try {
-      put({ id: await uploadArtwork(f), name: f.name, preview, thumb, px, aspect });
-    } catch (e) { put({ name: f.name, preview, px, aspect, error: (e as Error).message }); }
+      put({ id: await uploadArtwork(file, d.errors), name: file.name, preview, thumb, px, aspect });
+    } catch (e) { put({ name: file.name, preview, px, aspect, error: (e as Error).message }); }
   }
 
   function addToCart() {
     if (!ok) return;
     const files = sides.map((sd) => {
       const x = sideInfo(sd);
-      return { side: sd.id, artwork: x.art?.id, placement: x.zone && x.place ? describePlacement(x.zone, x.aspect, x.place) : undefined };
+      return { side: sd.id, artwork: x.art?.id, placement: x.zone && x.place ? describePlacement(x.zone, x.aspect, x.place, d.mock) : undefined };
     });
     const first = sides.map((sd) => arts[sd.id]).find((a) => a?.id);
     const names = sides.map((sd) => arts[sd.id]?.id && arts[sd.id]!.name).filter(Boolean);
@@ -102,7 +105,7 @@ export function ProductWizard({ productId }: { productId: string }) {
   }
 
   const next = () => setStep((s) => Math.min(STEPS.length - 1, s + 1));
-  const eta = (days: number) => today && fmtDate(addBusinessDays(today, days));
+  const eta = (days: number) => today && fmtDate(addBusinessDays(today, days, mk.weekend));
 
   return (
     <div className="grid items-start gap-4 max-md:pb-24 lg:grid-cols-12 [&>*]:min-w-0">
@@ -110,9 +113,9 @@ export function ProductWizard({ productId }: { productId: string }) {
       <div className="lg:col-span-5">
         <GlowCard className="h-auto lg:sticky lg:top-24" inner="flex flex-col items-center justify-center gap-4 bg-muted/40 p-4">
           {p.image && (
-            <div className="flex gap-1 self-stretch rounded-xl border p-1 text-xs" role="tablist" aria-label="תצוגה">
+            <div className="flex gap-1 self-stretch rounded-xl border p-1 text-xs" role="tablist" aria-label={w.viewAria}>
               {(["photo", "mock"] as const).map((v) => (
-                <button key={v} type="button" role="tab" aria-selected={view === v} onClick={() => setView(v)} className={`flex-1 rounded-lg py-1.5 ${view === v ? "bg-foreground/10 text-foreground" : "text-muted-foreground hover:text-foreground"}`}>{v === "photo" ? "תמונת מוצר" : "הדמיה עם הקובץ שלך"}</button>
+                <button key={v} type="button" role="tab" aria-selected={view === v} onClick={() => setView(v)} className={`flex-1 rounded-lg py-1.5 ${view === v ? "bg-foreground/10 text-foreground" : "text-muted-foreground hover:text-foreground"}`}>{v === "photo" ? w.viewPhoto : w.viewMock}</button>
               ))}
             </div>
           )}
@@ -121,38 +124,38 @@ export function ProductWizard({ productId }: { productId: string }) {
           ) : (
             <div className="w-full max-w-md space-y-2">
               {sides.length > 1 && (
-                <div className="flex flex-wrap justify-center gap-1 text-xs" role="tablist" aria-label="צד">
+                <div className="flex flex-wrap justify-center gap-1 text-xs" role="tablist" aria-label={w.sideAria}>
                   {sides.map((sd) => <button key={sd.id} type="button" role="tab" aria-selected={sd.id === side.id} onClick={() => setActiveSide(sd.id)} className={`rounded-full border px-3 py-1 ${sd.id === side.id ? "border-foreground text-foreground" : "text-muted-foreground hover:text-foreground"}`}>{sd.label}{arts[sd.id]?.id ? " ✓" : ""}</button>)}
                 </div>
               )}
-              {cur.zone ? <PhotoMockup key={side.id} zone={cur.zone} tint={tintFor(p, sel)} art={cur.art?.preview} aspect={cur.aspect} place={cur.place} onPlace={setPlace} />
-                : <div className="aspect-square w-full"><Mockup kind={mockupFor(p, sel)} tint={tintFor(p, sel)} src={cur.art?.preview} /></div>}
+              {cur.zone ? <PhotoMockup key={side.id} t={d.mock} zone={cur.zone} tint={tintFor(p, sel)} art={cur.art?.preview} aspect={cur.aspect} place={cur.place} onPlace={setPlace} />
+                : <div className="aspect-square w-full"><Mockup kind={mockupFor(p, sel)} tint={tintFor(p, sel)} src={cur.art?.preview} placeholder={d.mock.placeholder} label={d.mock.previewAria} /></div>}
             </div>
           )}
           {view === "mock" && cur.zone && cur.place && (() => { const zone = cur.zone, place = cur.place, aspect = cur.aspect, mw = maxWidth(zone, aspect); return (
             <div className="w-full max-w-md space-y-2 text-xs text-muted-foreground">
               <div className="flex items-center gap-3">
-                <span className="shrink-0">רוחב</span>
-                <input type="range" min={Math.min(1, mw)} max={Math.floor(mw * 10) / 10} step={0.1} value={place.w} onChange={(e) => setPlace({ ...place, w: Number(e.target.value), x: place.x + (place.w - Number(e.target.value)) / 2 })} aria-label="רוחב ההדפסה בס״מ" className="h-6 flex-1 accent-foreground" />
-                <span className="w-16 text-left tabular-nums" dir="ltr">{place.w.toFixed(1)} cm</span>
+                <span className="shrink-0">{w.width}</span>
+                <input type="range" min={Math.min(1, mw)} max={Math.floor(mw * 10) / 10} step={0.1} value={place.w} onChange={(e) => setPlace({ ...place, w: Number(e.target.value), x: place.x + (place.w - Number(e.target.value)) / 2 })} aria-label={w.widthAria} className="h-6 flex-1 accent-foreground" />
+                <span className="w-16 text-end tabular-nums" dir="ltr">{place.w.toFixed(1)} cm</span>
               </div>
               <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={() => setPlace({ ...place, x: (zone.cm[0] - place.w) / 2 })} className="rounded-full border px-2.5 py-1 hover:text-foreground">מרכוז</button>
-                <button type="button" onClick={() => setPlace({ w: mw, x: (zone.cm[0] - mw) / 2, y: 0 })} className="rounded-full border px-2.5 py-1 hover:text-foreground">הכי גדול</button>
-                <button type="button" onClick={() => setPlaced((m) => { const n = { ...m }; delete n[side.id]; return n; })} className="rounded-full border px-2.5 py-1 hover:text-foreground">איפוס</button>
+                <button type="button" onClick={() => setPlace({ ...place, x: (zone.cm[0] - place.w) / 2 })} className="rounded-full border px-2.5 py-1 hover:text-foreground">{w.center}</button>
+                <button type="button" onClick={() => setPlace({ w: mw, x: (zone.cm[0] - mw) / 2, y: 0 })} className="rounded-full border px-2.5 py-1 hover:text-foreground">{w.biggest}</button>
+                <button type="button" onClick={() => setPlaced((x) => { const y = { ...x }; delete y[side.id]; return y; })} className="rounded-full border px-2.5 py-1 hover:text-foreground">{w.reset}</button>
               </div>
-              <p className="font-medium text-foreground" role="status">{describePlacement(zone, aspect, place)}</p>
-              <p>גוררים את הגרפיקה כדי להזיז, מושכים את הפינה לשינוי גודל.</p>
+              <p className="font-medium text-foreground" role="status">{describePlacement(zone, aspect, place, d.mock)}</p>
+              <p>{w.dragHint}</p>
             </div>); })()}
-          {view === "mock" && !cur.art && <p className="text-center text-xs text-muted-foreground">{sides.length > 1 ? `מעלים קובץ לכל צד בשלב ״גרפיקה״ — עכשיו מוצג: ${side.label}` : "מעלים קובץ בשלב ״גרפיקה״ ורואים אותו כאן על המוצר"}</p>}
-          {cur.art && !cur.art.preview && <p className="flex items-center gap-2 text-xs text-muted-foreground"><FileText className="h-4 w-4" /> {cur.art.name} — תצוגה מקדימה זמינה לתמונות בלבד</p>}
-          <p className="text-center text-xs text-muted-foreground">{view === "photo" ? "תמונת דוגמה — הלוגו שלכם יודפס באותו מיקום." : "הדמיה להמחשה. ייתכנו הבדלי גוון קלים בין המסך להדפסה."}</p>
+          {view === "mock" && !cur.art && <p className="text-center text-xs text-muted-foreground">{sides.length > 1 ? f(w.uploadHintMulti, { side: side.label }) : w.uploadHint}</p>}
+          {cur.art && !cur.art.preview && <p className="flex items-center gap-2 text-xs text-muted-foreground"><FileText className="h-4 w-4" /> {f(w.previewImagesOnly, { name: cur.art.name })}</p>}
+          <p className="text-center text-xs text-muted-foreground">{view === "photo" ? w.photoNote : w.mockNote}</p>
         </GlowCard>
       </div>
 
       {/* steps */}
       <div className="space-y-4 lg:col-span-7">
-        <ol className="grid grid-cols-4 gap-2 text-xs" aria-label="שלבי ההזמנה">
+        <ol className="grid grid-cols-4 gap-2 text-xs" aria-label={w.stepsAria}>
           {STEPS.map((t, i) => (
             <li key={t}>
               <button type="button" onClick={() => setStep(i)} aria-current={step === i ? "step" : undefined}
@@ -166,20 +169,20 @@ export function ProductWizard({ productId }: { productId: string }) {
         <GlowCard className="h-auto" inner="space-y-6 min-h-[22rem]">
           {step === 0 && (
             <div className="space-y-5">
-              <h2 className="text-lg font-semibold">בחירת מאפיינים</h2>
+              <h2 className="text-lg font-semibold">{w.chooseOptions}</h2>
               {p.options.filter((o) => o.kind !== "split" && vis[o.id].length).map((o) => (
                 <fieldset key={o.id} className="space-y-2">
                   <legend className="mb-2 text-sm text-muted-foreground">{o.title}{o.kind === "color" && <span className="text-foreground"> · {o.values.find((v) => v.id === sel[o.id])?.title}</span>}</legend>
                   <div className="flex flex-wrap gap-2">
                     {vis[o.id].map((v) => {
                       const on = sel[o.id] === v.id;
-                      const delta = withVat(tierAt(v.tiers, ok ? line.quantity : qty));
+                      const delta = withVat(tierAt(v.tiers, ok ? line.quantity : qty), cat);
                       return o.kind === "color" ? (
                         <button key={v.id} type="button" onClick={() => { setPicked({ ...picked, [o.id]: v.id }); if (o.id !== "inside") setView("mock"); }} aria-label={v.title} aria-pressed={on} title={v.title}
                           className={`h-9 w-9 rounded-full border-2 ${on ? "border-foreground ring-2 ring-foreground/30" : "border-foreground/20"}`} style={{ background: v.color }} />
                       ) : (
                         <button key={v.id} type="button" onClick={() => setPicked({ ...picked, [o.id]: v.id })} aria-pressed={on} className={chip(on)}>
-                          {v.title}{delta !== 0 && <span className="block text-xs text-muted-foreground">{delta > 0 ? "+" : "−"}{ils(Math.abs(delta))} ליח׳</span>}
+                          {v.title}{delta !== 0 && <span className="block text-xs text-muted-foreground">{f(w.perUnitDelta, { sign: delta > 0 ? "+" : "−", price: m(Math.abs(delta)) })}</span>}
                         </button>
                       );
                     })}
@@ -191,34 +194,34 @@ export function ProductWizard({ productId }: { productId: string }) {
 
           {step === 1 && (
             <div className="space-y-4">
-              <h2 className="text-lg font-semibold">בחירת כמות</h2>
+              <h2 className="text-lg font-semibold">{w.chooseQty}</h2>
               {splitOpt ? (
                 <>
-                  <p className="text-sm text-muted-foreground">חלקו את הכמות בין המידות. המחיר נקבע לפי הכמות הכוללת.</p>
+                  <p className="text-sm text-muted-foreground">{w.splitHint}</p>
                   <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
                     {splitOpt.values.filter((v) => v.active !== false).map((v) => (
                       <label key={v.id} className="space-y-1 text-center text-sm"><span className="text-muted-foreground">{v.title}</span>
                         <input type="number" min={0} inputMode="numeric" value={split[v.id] ?? 0} onChange={(e) => setSplit({ ...split, [v.id]: Math.max(0, Math.floor(Number(e.target.value) || 0)) })} className={`${input} text-center`} /></label>
                     ))}
                   </div>
-                  <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">מדרגות מחיר: {p.qty.presets.map((n) => { const l = quote({ split: { [splitOpt.values.find((v) => v.active !== false)?.id ?? ""]: n } }); return l && <span key={n} className="rounded-full border px-2 py-0.5">{n}+ · {ils(withVat(l.unitPrice))}</span>; })}</div>
+                  <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">{w.priceTiers} {p.qty.presets.map((q) => { const l = quote({ split: { [splitOpt.values.find((v) => v.active !== false)?.id ?? ""]: q } }); return l && <span key={q} className="rounded-full border px-2 py-0.5">{n(q)}+ · {m(withVat(l.unitPrice, cat))}</span>; })}</div>
                 </>
               ) : (
                 <>
                   <table className="w-full text-sm">
-                    <thead className="text-xs text-muted-foreground"><tr><th className="pb-2 text-right font-normal">כמות</th><th className="pb-2 text-right font-normal">ליחידה</th><th className="pb-2 text-left font-normal">סה״כ כולל מע״מ</th></tr></thead>
+                    <thead className="text-xs text-muted-foreground"><tr><th className="pb-2 text-start font-normal">{w.qty}</th><th className="pb-2 text-start font-normal">{w.unit}</th><th className="pb-2 text-end font-normal">{f(w.totalInclVat, { vatShort: d.vat.short })}</th></tr></thead>
                     <tbody>
-                      {p.qty.presets.map((n) => { const l = quote({ quantity: n }); const on = qty === n; return l && (
-                        <tr key={n} onClick={() => setQty(n)} className={`cursor-pointer border-t ${on ? "bg-foreground/5 text-foreground" : "text-foreground/80 hover:bg-foreground/[.03]"}`}>
-                          <td className="py-2.5 pr-2"><label className="flex cursor-pointer items-center gap-2"><input type="radio" name="qty" checked={on} onChange={() => setQty(n)} className="accent-foreground" />{n.toLocaleString("he-IL")}</label></td>
-                          <td className="py-2.5 text-muted-foreground">{ils(withVat(l.unitPrice))}</td>
-                          <td className="py-2.5 text-left font-medium">{ils(withVat(l.subtotal))}</td>
+                      {p.qty.presets.map((q) => { const l = quote({ quantity: q }); const on = qty === q; return l && (
+                        <tr key={q} onClick={() => setQty(q)} className={`cursor-pointer border-t ${on ? "bg-foreground/5 text-foreground" : "text-foreground/80 hover:bg-foreground/[.03]"}`}>
+                          <td className="py-2.5 ps-2"><label className="flex cursor-pointer items-center gap-2"><input type="radio" name="qty" checked={on} onChange={() => setQty(q)} className="accent-foreground" />{n(q)}</label></td>
+                          <td className="py-2.5 text-muted-foreground">{m(withVat(l.unitPrice, cat))}</td>
+                          <td className="py-2.5 text-end font-medium">{m(withVat(l.subtotal, cat))}</td>
                         </tr>); })}
                     </tbody>
                   </table>
-                  <label className="flex items-center gap-3 text-sm text-muted-foreground">כמות אחרת
+                  <label className="flex items-center gap-3 text-sm text-muted-foreground">{w.otherQty}
                     <input type="number" min={p.qty.min} max={p.qty.max} step={p.qty.step} value={qty} onChange={(e) => setQty(Math.floor(Number(e.target.value) || 0))} className={`${input} w-32`} />
-                    <span className="text-xs">({p.qty.min.toLocaleString("he-IL")}–{p.qty.max.toLocaleString("he-IL")}{p.qty.step > 1 && `, בכפולות של ${p.qty.step}`})</span>
+                    <span className="text-xs">({n(p.qty.min)}–{n(p.qty.max)}{p.qty.step > 1 && f(w.multiplesOf, { n: p.qty.step })})</span>
                   </label>
                 </>
               )}
@@ -227,57 +230,54 @@ export function ProductWizard({ productId }: { productId: string }) {
 
           {step === 2 && (
             <div className="space-y-4">
-              <h2 className="text-lg font-semibold">זמן ייצור</h2>
+              <h2 className="text-lg font-semibold">{w.production}</h2>
               <div className="grid gap-3 sm:grid-cols-2">
                 {p.production.map((id) => { const pr = cat.production[id]; const l = quote({ production: id }); const on = production === id; return (
                   <button key={id} type="button" onClick={() => setProduction(id)} aria-pressed={on} className={`${chip(on)} flex items-center justify-between gap-3 p-4`}>
                     <span className="space-y-1">
-                      <span className="flex items-center gap-2 font-medium"><Clock className="h-4 w-4" /> {pr.label} · {pr.days} ימי עסקים</span>
-                      {today && <span className="block text-xs text-muted-foreground">מוכן עד {eta(pr.days)} · בשליח עד הבית ~{eta(pr.days + cat.shipping.home.days)}</span>}
+                      <span className="flex items-center gap-2 font-medium"><Clock className="h-4 w-4" /> {pr.label} · {f(w.businessDays, { n: pr.days })}</span>
+                      {today && <span className="block text-xs text-muted-foreground">{f(w.readyBy, { date: eta(pr.days) || "", date2: eta(pr.days + cat.shipping.home.days) || "" })}</span>}
                     </span>
-                    {l && <span className="text-left text-sm">{ils(withVat(l.subtotal))}{pr.pct !== 0 && <span className="block text-xs text-muted-foreground">{pr.pct > 0 ? "+" : ""}{pr.pct * 100}%</span>}</span>}
+                    {l && <span className="text-end text-sm">{m(withVat(l.subtotal, cat))}{pr.pct !== 0 && <span className="block text-xs text-muted-foreground">{pr.pct > 0 ? "+" : ""}{pr.pct * 100}%</span>}</span>}
                   </button>); })}
               </div>
-              <p className="text-xs text-muted-foreground">ימי עסקים: א׳–ה׳, לא כולל חגים. זמן הייצור נספר מאישור הגרפיקה.</p>
+              <p className="text-xs text-muted-foreground">{f(w.businessDaysNote, { days: w.businessDaysList })}</p>
             </div>
           )}
 
           {step === 3 && (
             <div className="space-y-4">
-              <h2 className="text-lg font-semibold">גרפיקה</h2>
+              <h2 className="text-lg font-semibold">{w.artwork}</h2>
               {sides.map((sd) => { const x = sideInfo(sd), art = x.art; return (
                 <div key={sd.id} className="space-y-2">
-                  {sides.length > 1 && <p className="text-sm font-medium">{sd.label}{sd.cm && <span className="font-normal text-muted-foreground"> · עד {+sd.cm[0].toFixed(1)}×{+sd.cm[1].toFixed(1)} ס״מ</span>}</p>}
+                  {sides.length > 1 && <p className="text-sm font-medium">{sd.label}{sd.cm && <span className="font-normal text-muted-foreground">{f(w.upTo, { w: +sd.cm[0].toFixed(1), h: +sd.cm[1].toFixed(1) })}</span>}</p>}
                   <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-dashed p-5 text-sm text-foreground/80 hover:border-foreground/40">
                     {art?.busy ? <Loader2 className="h-5 w-5 animate-spin" /> : art?.id ? <Check className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /> : <Upload className="h-5 w-5" />}
-                    <span className="min-w-0 break-words">{art ? `${art.name}${art.busy ? " — מעלה…" : art.id ? " — הועלה" : ""}` : `העלאת קובץ${sides.length > 1 ? ` ל${sd.label.split(" · ")[0]}` : " מוכן"} — PDF, PNG, JPG, SVG עד 25MB`}</span>
-                    <input type="file" className="sr-only" aria-label={`העלאת קובץ — ${sd.label}`} accept="application/pdf,image/png,image/jpeg,image/webp,image/svg+xml" onChange={(e) => { onFile(sd, e.target.files?.[0]); e.target.value = ""; }} />
+                    <span className="min-w-0 break-words">{art ? `${art.name}${art.busy ? w.uploading : art.id ? w.uploaded : ""}` : sides.length > 1 ? f(w.uploadFileFor, { side: sd.label.split(" · ")[0] }) : w.uploadFile}</span>
+                    <input type="file" className="sr-only" aria-label={f(w.uploadAria, { side: sd.label })} accept="application/pdf,image/png,image/jpeg,image/webp,image/svg+xml" onChange={(e) => { onFile(sd, e.target.files?.[0]); e.target.value = ""; }} />
                   </label>
                   {art?.error && <p className="text-sm text-red-600 dark:text-red-400" role="alert">{art.error}</p>}
                   {x.level && (
                     <p className={`flex items-center gap-2 text-xs ${x.level === "low" ? "text-amber-700 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`} role="status">
                       {x.level === "low" ? <AlertTriangle className="h-4 w-4 shrink-0" /> : <BadgeCheck className="h-4 w-4 shrink-0" />}
-                      {x.level === "good" ? `איכות מעולה להדפסה (${x.dpi} DPI)` : x.level === "ok" ? `איכות סבירה (${x.dpi} DPI) — מומלץ 300` : `רזולוציה נמוכה למידה הזו (${x.dpi} DPI) — ההדפסה עלולה לצאת מטושטשת. מומלץ PDF וקטורי או תמונה גדולה יותר.`}
+                      {f(x.level === "good" ? w.dpiGood : x.level === "ok" ? w.dpiOk : w.dpiLow, { dpi: x.dpi ?? 0 })}
                     </p>
                   )}
                 </div>); })}
-              {!Object.values(arts).some(Boolean) && <p className="text-sm text-muted-foreground">אין קובץ מוכן? אפשר להוסיף לעגלה עכשיו ולשלוח את הגרפיקה אחר כך בצ׳אט או במייל — נחכה לקובץ לפני שנתחיל לייצר.</p>}
+              {!Object.values(arts).some(Boolean) && <p className="text-sm text-muted-foreground">{w.noFile}</p>}
               <details className="rounded-xl border p-4 text-sm">
-                <summary className="cursor-pointer font-medium">הנחיות להכנת קובץ</summary>
-                <ul className="mt-3 list-disc space-y-1.5 pr-5 text-muted-foreground">
-                  {side.cm && <li>גודל ההדפסה המקסימלי: {+side.cm[0].toFixed(1)}×{+side.cm[1].toFixed(1)} ס״מ. הוסיפו 3 מ״מ רקע מכל צד (bleed).</li>}
-                  <li>מומלץ PDF וקטורי. תמונות ב-300 DPI לפחות בגודל ההדפסה.</li>
-                  <li>טקסט ולוגו — לפחות 4 מ״מ מקו החיתוך (אזור בטוח). חיתוך עשוי לסטות ב-1 מ״מ.</li>
-                  <li>טקסט בגודל 7pt לפחות, קווים בעובי 0.25pt לפחות.</li>
-                  <li>אין צורך בסימני חיתוך — נוסיף אותם בעצמנו.</li>
+                <summary className="cursor-pointer font-medium">{w.fileGuide}</summary>
+                <ul className="mt-3 list-disc space-y-1.5 ps-5 text-muted-foreground">
+                  {side.cm && <li>{f(w.guide[0], { w: +side.cm[0].toFixed(1), h: +side.cm[1].toFixed(1) })}</li>}
+                  {w.guide.slice(1).map((g) => <li key={g}>{g}</li>)}
                 </ul>
               </details>
             </div>
           )}
 
           <div className="flex items-center justify-between border-t pt-4">
-            <button type="button" onClick={() => setStep(step - 1)} disabled={step === 0} className="flex items-center gap-1 py-2 text-sm text-muted-foreground hover:text-foreground disabled:invisible"><ChevronRight className="h-4 w-4" /> חזרה</button>
-            {step < STEPS.length - 1 && <button type="button" onClick={next} disabled={step === 1 && !ok} className="flex items-center gap-1 rounded-lg border px-4 py-2 text-sm hover:border-foreground/40 disabled:opacity-40">המשך <ChevronLeft className="h-4 w-4" /></button>}
+            <button type="button" onClick={() => setStep(step - 1)} disabled={step === 0} className="flex items-center gap-1 py-2 text-sm text-muted-foreground hover:text-foreground disabled:invisible"><ChevronRight className="h-4 w-4 ltr:rotate-180" /> {w.back}</button>
+            {step < STEPS.length - 1 && <button type="button" onClick={next} disabled={step === 1 && !ok} className="flex items-center gap-1 rounded-lg border px-4 py-2 text-sm hover:border-foreground/40 disabled:opacity-40">{w.next} <ChevronLeft className="h-4 w-4 ltr:rotate-180" /></button>}
           </div>
         </GlowCard>
 
@@ -285,18 +285,18 @@ export function ProductWizard({ productId }: { productId: string }) {
         <div className="z-30 border bg-card/95 p-4 backdrop-blur max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:border-x-0 max-md:border-b-0 max-md:pb-[max(1rem,env(safe-area-inset-bottom))] md:sticky md:bottom-3 md:rounded-2xl">
           {added ? (
             <div className="flex flex-wrap items-center gap-3 text-sm" role="status">
-              <Check className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /> נוסף לעגלה!
-              <Link href="/cart" className="ms-auto rounded-lg bg-foreground px-4 py-2 font-medium text-background">לעגלה ולתשלום</Link>
-              <button type="button" onClick={() => { setAdded(false); setArts({}); setPlaced({}); setStep(0); }} className="rounded-lg border px-4 py-2">עוד אחד</button>
+              <Check className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /> {w.added}
+              <Link href={href("/cart")} className="ms-auto rounded-lg bg-foreground px-4 py-2 font-medium text-background">{w.toCart}</Link>
+              <button type="button" onClick={() => { setAdded(false); setArts({}); setPlaced({}); setStep(0); }} className="rounded-lg border px-4 py-2">{w.another}</button>
             </div>
           ) : (
             <div className="flex items-center gap-4">
               {ok ? (
-                <p className="min-w-0 text-sm text-muted-foreground"><span className="block text-2xl leading-tight font-semibold text-foreground">{ils(withVat(line.subtotal))}</span>{line.quantity.toLocaleString("he-IL")} יח׳ · {ils(withVat(line.unitPrice))} ליח׳ · כולל מע״מ</p>
+                <p className="min-w-0 text-sm text-muted-foreground"><span className="block text-2xl leading-tight font-semibold text-foreground">{m(withVat(line.subtotal, cat))}</span>{f(w.priceBar, { qty: n(line.quantity), unit: m(withVat(line.unitPrice, cat)), vatShort: d.vat.short })}</p>
               ) : <p className="min-w-0 text-sm text-red-600 dark:text-red-400" role="alert">{line}</p>}
               {step < STEPS.length - 1
-                ? <button type="button" onClick={next} disabled={!ok} className="ms-auto shrink-0 rounded-lg bg-foreground px-5 py-2.5 font-medium text-background disabled:opacity-40">המשך</button>
-                : <button type="button" onClick={addToCart} disabled={!ok || Object.values(arts).some((a) => a?.busy)} className="ms-auto flex shrink-0 items-center gap-2 rounded-lg bg-foreground px-5 py-2.5 font-medium text-background disabled:opacity-40"><ShoppingCart className="h-4 w-4" /> הוספה לעגלה</button>}
+                ? <button type="button" onClick={next} disabled={!ok} className="ms-auto shrink-0 rounded-lg bg-foreground px-5 py-2.5 font-medium text-background disabled:opacity-40">{w.next}</button>
+                : <button type="button" onClick={addToCart} disabled={!ok || Object.values(arts).some((a) => a?.busy)} className="ms-auto flex shrink-0 items-center gap-2 rounded-lg bg-foreground px-5 py-2.5 font-medium text-background disabled:opacity-40"><ShoppingCart className="h-4 w-4" /> {w.addToCart}</button>}
             </div>
           )}
         </div>

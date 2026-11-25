@@ -201,7 +201,23 @@ const PRODUCTS: Product[] = [
     details: ["38×42 ס״מ", "מתאים לכנסים, חנויות ואירועים"] },
 ];
 
-export type Catalog = { categories: Category[]; products: Product[]; production: Record<ProductionId, Production>; shipping: Record<ShippingId, Shipping> };
+/** Market a catalog is priced for: currency, VAT, number/date format and weekend days. Prices in the catalog are in this currency. */
+export type Market = { currency: string; vat: number; intl: string; weekend: number[] };
+export const HE_MARKET: Market = { currency: "ILS", vat: 0.18, intl: "he-IL", weekend: [5, 6] };
+/** Customer-facing texts produced by the pricing engine ({x} = placeholder). Localized catalogs carry a translation. */
+export const CATALOG_TEXT = {
+  noProduct: "מוצר לא קיים: {id}", unavailable: "{name} אינו זמין כרגע", noSizes: "אין {title} זמינה ל{name}", noSuchSize: "{title} לא קיימת: {k}",
+  badSizeQty: "כמות לא תקינה למידה {k}", minQty: "כמות מינימלית ל{name}: {min}", maxQty: "כמות מקסימלית ל{name}: {max} — לכמויות גדולות דברו איתנו",
+  stepQty: "ל{name} אפשר להזמין בכפולות של {step}", priceError: "שגיאת מחירון ב{name} — פנו אלינו", noShipping: "אין שיטת משלוח זמינה",
+  front: "קדמי", back: "גב", outside: "צד חיצוני (שער + גב)", inside: "צד פנימי", sideFront: "צד קדמי", sideBack: "צד אחורי",
+  chest: "חזה", fullBack: "גב מלא", artwork: "גרפיקה",
+};
+export type CatalogText = typeof CATALOG_TEXT;
+export const fill = (s: string, v: Record<string, string | number>) => s.replace(/\{(\w+)\}/g, (_, k) => String(v[k] ?? ""));
+
+export type Catalog = { categories: Category[]; products: Product[]; production: Record<ProductionId, Production>; shipping: Record<ShippingId, Shipping>; market?: Market; t?: CatalogText };
+const mk = (cat?: Pick<Catalog, "market">) => cat?.market ?? HE_MARKET;
+const tx = (cat?: Pick<Catalog, "t">) => cat?.t ?? CATALOG_TEXT;
 /** Built-in catalog. The live one is data/catalog.json (edited in /admin/catalog) — see catalog-store.ts. */
 export const DEFAULT_CATALOG: Catalog = { categories: CATEGORIES, products: PRODUCTS, production: PRODUCTION, shipping: SHIPPING };
 export const liveProducts = (cat: Catalog) => cat.products.filter((p) => p.active !== false);
@@ -209,6 +225,14 @@ export const liveShipping = (cat: Catalog) => SHIPPING_IDS.filter((id) => cat.sh
 
 const r2 = (n: number) => Math.round(n * 100 + 1e-9) / 100; // epsilon: 1.425 must round up
 export const ils = (n: number) => `₪${n.toLocaleString("he-IL", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+/** Price formatter for a catalog's market (₪ / $ / € / AED). */
+export function money(cat?: Pick<Catalog, "market">) {
+  const m = mk(cat);
+  if (m.currency === "ILS") return ils;
+  const f = new Intl.NumberFormat(m.intl, { style: "currency", currency: m.currency, minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  return (n: number) => f.format(n);
+}
+export const num = (cat: Pick<Catalog, "market"> | undefined, n: number) => n.toLocaleString(mk(cat).intl);
 export const findProduct = (cat: Catalog, id: string) => cat.products.find((p) => p.id === id || p.name === id);
 export const tierAt = (t: Tier[] | undefined, q: number) => (t?.length ? (t.findLast(([from]) => q >= from) ?? t[0])[1] : 0);
 
@@ -243,21 +267,21 @@ export type Line = {
   unitPrice: number; setup: number; subtotal: number; artwork?: string; placement?: string; files?: SideFile[];
 };
 
-export type Side = { id: string; label: string; cm?: [number, number] };
+export type Side = { id: string; label: string; cm?: [number, number]; single?: boolean };
 /** The printed sides of a product for the chosen options (one upload + placement each). */
-export function sidesOf(p: Product, sel: Record<string, string>): Side[] {
+export function sidesOf(p: Product, sel: Record<string, string>, t: CatalogText = CATALOG_TEXT): Side[] {
   const val = (o: string) => p.options.find((x) => x.id === o)?.values.find((v) => v.id === sel[o]);
   if (p.options.some((o) => o.id === "front")) {
-    return ([["front", "קדמי"], ["back", "גב"]] as const).flatMap(([id, label]) => {
+    return ([["front", t.front], ["back", t.back]] as const).flatMap(([id, label]) => {
       const v = val(id);
       return v && v.id !== "none" ? [{ id, label: `${label} · ${v.title.split(" — ")[0]}`, cm: v.cm }] : [];
     });
   }
   const cm = printCmFor(p, sel);
-  if (p.id === "brochure") return [{ id: "outside", label: "צד חיצוני (שער + גב)", cm }, { id: "inside", label: "צד פנימי", cm }];
-  if (sel.sides === "2" || sel.print === "two") return [{ id: "front", label: "צד קדמי", cm }, { id: "back", label: "צד אחורי", cm }];
-  if (sel.branding === "chest-back") return [{ id: "front", label: "חזה", cm: [10, 10] }, { id: "back", label: "גב מלא", cm: [28, 35] }];
-  return [{ id: "front", label: "גרפיקה", cm }];
+  if (p.id === "brochure") return [{ id: "outside", label: t.outside, cm }, { id: "inside", label: t.inside, cm }];
+  if (sel.sides === "2" || sel.print === "two") return [{ id: "front", label: t.sideFront, cm }, { id: "back", label: t.sideBack, cm }];
+  if (sel.branding === "chest-back") return [{ id: "front", label: t.chest, cm: [10, 10] }, { id: "back", label: t.fullBack, cm: [28, 35] }];
+  return [{ id: "front", label: t.artwork, cm, single: true }];
 }
 
 const ART_ID = /^[\w-]+\.(png|jpg|webp|pdf|svg)$/;
@@ -267,47 +291,48 @@ export const lineFiles = (l: Pick<Line, "artwork" | "placement" | "files">): Sid
 
 export function priceLine(cat: Catalog, input: LineInput): Line {
   const p = findProduct(cat, String(input.productId));
-  if (!p) throw new Error(`מוצר לא קיים: ${input.productId}`);
-  if (p.active === false) throw new Error(`${p.name} אינו זמין כרגע`);
+  const t = tx(cat);
+  if (!p) throw new Error(fill(t.noProduct, { id: String(input.productId) }));
+  if (p.active === false) throw new Error(fill(t.unavailable, { name: p.name }));
   const sel = normalize(p, input.options ?? {});
   const splitOpt = p.options.find((o) => o.kind === "split");
   let quantity = Number(input.quantity);
   let split: Record<string, number> | undefined;
   if (splitOpt) {
     const sizes = splitOpt.values.filter((v) => v.active !== false);
-    if (!sizes.length) throw new Error(`אין ${splitOpt.title} זמינה ל${p.name}`);
+    if (!sizes.length) throw new Error(fill(t.noSizes, { title: splitOpt.title, name: p.name }));
     const raw = input.split && Object.keys(input.split).length ? input.split : { [sizes[0].id]: quantity };
     split = {};
     for (const [k, n] of Object.entries(raw)) {
-      if (!sizes.some((v) => v.id === k)) throw new Error(`${splitOpt.title} לא קיימת: ${k}`);
-      if (!Number.isInteger(n) || n < 0) throw new Error(`כמות לא תקינה למידה ${k}`);
+      if (!sizes.some((v) => v.id === k)) throw new Error(fill(t.noSuchSize, { title: splitOpt.title, k }));
+      if (!Number.isInteger(n) || n < 0) throw new Error(fill(t.badSizeQty, { k }));
       if (n) split[k] = n;
     }
     quantity = Object.values(split).reduce((a, b) => a + b, 0);
   }
   const { min, max, step, presets } = p.qty;
-  if (!Number.isInteger(quantity) || quantity < min) throw new Error(`כמות מינימלית ל${p.name}: ${min}`);
-  if (quantity > max) throw new Error(`כמות מקסימלית ל${p.name}: ${max.toLocaleString("he-IL")} — לכמויות גדולות דברו איתנו`);
-  if (!presets.includes(quantity) && quantity % step) throw new Error(`ל${p.name} אפשר להזמין בכפולות של ${step}`);
+  if (!Number.isInteger(quantity) || quantity < min) throw new Error(fill(t.minQty, { name: p.name, min: num(cat, min) }));
+  if (quantity > max) throw new Error(fill(t.maxQty, { name: p.name, max: num(cat, max) }));
+  if (!presets.includes(quantity) && quantity % step) throw new Error(fill(t.stepQty, { name: p.name, step }));
   const production = (p.production.includes(input.production as ProductionId) ? input.production : p.production.includes("standard") ? "standard" : p.production[0]) as ProductionId;
 
   const chosen = p.options.filter((o) => sel[o.id]).map((o) => [o, o.values.find((v) => v.id === sel[o.id])!] as const);
   const raw = tierAt(p.base, quantity) + chosen.reduce((s, [, v]) => s + tierAt(v.tiers, quantity), 0);
   const unitPrice = r2(raw * (1 + cat.production[production].pct));
-  if (!(unitPrice > 0)) throw new Error(`שגיאת מחירון ב${p.name} — פנו אלינו`);
+  if (!(unitPrice > 0)) throw new Error(fill(t.priceError, { name: p.name }));
   const setup = p.setup ?? 0;
   return {
     productId: p.id, productName: p.name, quantity, options: sel,
     labels: [...chosen.map(([o, v]) => [o.title, v.title] as [string, string]), ...(split ? [[splitOpt!.title, Object.entries(split).map(([k, n]) => `${k}×${n}`).join(", ")] as [string, string]] : [])],
     split, production, productionLabel: cat.production[production].label, productionDays: cat.production[production].days,
     unitPrice, setup, subtotal: r2(unitPrice * quantity + setup),
-    ...lineArt(p, sel, input),
+    ...lineArt(p, sel, input, t),
   };
 }
 
 // files per side, validated against the product's sides; artwork/placement mirror the first side for older readers
-function lineArt(p: Product, sel: Record<string, string>, input: LineInput) {
-  const sides = sidesOf(p, sel);
+function lineArt(p: Product, sel: Record<string, string>, input: LineInput, t: CatalogText) {
+  const sides = sidesOf(p, sel, t);
   const art = (a?: string) => (a && ART_ID.test(a) ? a : undefined);
   const raw = Array.isArray(input.files) && input.files.length ? input.files : [{ side: sides[0]?.id ?? "front", artwork: input.artwork, placement: input.placement }];
   const files = sides.flatMap((sd) => {
@@ -321,19 +346,19 @@ export type Totals = { subtotal: number; shipping: number; vat: number; total: n
 export function totals(cat: Catalog, lines: Pick<Line, "subtotal">[], method: string = "home"): Totals {
   const live = liveShipping(cat);
   const m = (live.includes(method as ShippingId) ? method : live.includes("home") ? "home" : live[0]) as ShippingId;
-  if (!m) throw new Error("אין שיטת משלוח זמינה");
+  if (!m) throw new Error(tx(cat).noShipping);
   const subtotal = r2(lines.reduce((s, l) => s + l.subtotal, 0));
   const s = cat.shipping[m];
   const shipping = s.freeFrom && subtotal >= s.freeFrom ? 0 : s.price;
-  const vat = r2((subtotal + shipping) * VAT);
+  const vat = r2((subtotal + shipping) * mk(cat).vat);
   return { subtotal, shipping, vat, total: r2(subtotal + shipping + vat), shippingMethod: m, shippingLabel: s.label, shippingDays: s.days };
 }
 
-export const withVat = (n: number) => r2(n * (1 + VAT));
+export const withVat = (n: number, cat?: Pick<Catalog, "market">) => r2(n * (1 + mk(cat).vat));
 /** Lowest per-unit price incl. VAT (default options, largest preset, cheapest production) — for "החל מ-" labels. */
 export function fromPrice(cat: Catalog, p: Product) {
   const cheapest = p.production.toSorted((a, b) => cat.production[a].pct - cat.production[b].pct)[0];
-  try { return withVat(priceLine(cat, { productId: p.id, quantity: p.qty.presets.at(-1), production: cheapest }).unitPrice); } catch { return 0; }
+  try { return withVat(priceLine(cat, { productId: p.id, quantity: p.qty.presets.at(-1), production: cheapest }).unitPrice, cat); } catch { return 0; }
 }
 export const mockupFor = (p: Product, sel: Record<string, string>): Mockup =>
   p.options.flatMap((o) => o.values.filter((v) => sel[o.id] === v.id && v.mockup)).at(-1)?.mockup ?? p.mockup;
@@ -352,10 +377,10 @@ export function printDpi(cm: [number, number], w: number, h: number): number {
 }
 export const dpiLevel = (dpi: number) => (dpi >= 250 ? "good" : dpi >= 150 ? "ok" : "low");
 
-/** Add Israeli business days (Sun–Thu). */
-export function addBusinessDays(from: Date, n: number) {
+/** Add business days; `weekend` = day numbers off (Israel: Fri+Sat, elsewhere Sat+Sun). */
+export function addBusinessDays(from: Date, n: number, weekend: number[] = HE_MARKET.weekend) {
   const d = new Date(from);
-  while (n > 0) { d.setDate(d.getDate() + 1); if (d.getDay() < 5) n--; }
+  while (n > 0) { d.setDate(d.getDate() + 1); if (!weekend.includes(d.getDay())) n--; }
   return d;
 }
 

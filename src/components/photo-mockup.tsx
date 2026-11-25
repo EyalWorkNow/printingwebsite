@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { clampPlacement, maxWidth, type Placement, type View, type Zone } from "@/lib/photo-mockups";
+import { clampPlacement, maxWidth, type MockText, type Placement, type View, type Zone } from "@/lib/photo-mockups";
 
 // Real-photo mockup on a canvas:
 //  1. photo; for a colour choice the product is recoloured through its exact mask (shading kept, see recolor()),
@@ -41,8 +41,8 @@ function recolor(photo: HTMLImageElement, mask: HTMLImageElement, hex: string): 
   return c;
 }
 
-export function PhotoMockup({ zone, tint, art, aspect, place, onPlace }: {
-  zone: Zone; tint?: string; art?: string; aspect: number; place?: Placement; onPlace: (p: Placement) => void;
+export function PhotoMockup({ zone, tint, art, aspect, place, onPlace, t }: {
+  zone: Zone; tint?: string; art?: string; aspect: number; place?: Placement; onPlace: (p: Placement) => void; t: MockText;
 }) {
   const wrap = useRef<HTMLDivElement>(null), canvas = useRef<HTMLCanvasElement>(null);
   const v = zone.view;
@@ -137,14 +137,14 @@ export function PhotoMockup({ zone, tint, art, aspect, place, onPlace }: {
     <div ref={wrap} className="relative mx-auto w-full touch-none select-none overflow-hidden rounded-xl bg-muted"
       style={{ aspectRatio: `${cw} / ${ch}`, maxWidth: ch > cw ? `${(560 * cw) / ch}px` : undefined }}
       onPointerMove={move} onPointerUp={() => { drag.current = undefined; }}>
-      <canvas ref={canvas} className="absolute inset-0 h-full w-full" aria-label="הדמיה על תמונת מוצר אמיתית" role="img" />
+      <canvas ref={canvas} className="absolute inset-0 h-full w-full" aria-label={t.photoAria} role="img" />
       {size > 0 && (
         <div className={`pointer-events-none absolute border border-dashed border-sky-600/70 ${zone.clip ? "rounded-full" : ""}`} style={{ left: (zoneL - cx) * s, top: (by - cy) * s, width: (zoneR - zoneL) * s, height: bh * s }}>
-          {!art && <span className="absolute inset-0 flex items-center justify-center text-center text-[11px] leading-tight text-sky-700">אזור הדפסה<br />{+zone.cm[0].toFixed(1)}×{+zone.cm[1].toFixed(1)} ס״מ</span>}
+          {!art && <span className="absolute inset-0 flex items-center justify-center text-center text-[11px] leading-tight" dir="auto"><span className="rounded-md bg-white/90 px-1.5 py-0.5 text-sky-800">{t.zone}<br /><span dir="ltr">{+zone.cm[0].toFixed(1)}×{+zone.cm[1].toFixed(1)} cm</span></span></span>}
         </div>
       )}
       {size > 0 && art && place && (
-        <div role="slider" tabIndex={0} aria-label="מיקום הגרפיקה — חצים להזזה, + ו- לשינוי גודל" aria-valuetext={`רוחב ${place.w.toFixed(1)} ס״מ`} aria-valuenow={Math.round(place.w * 10) / 10} aria-valuemin={1} aria-valuemax={Math.round(maxWidth(zone, aspect) * 10) / 10}
+        <div role="slider" tabIndex={0} aria-label={t.artAria} aria-valuetext={t.widthText.replace("{w}", place.w.toFixed(1))} aria-valuenow={Math.round(place.w * 10) / 10} aria-valuemin={1} aria-valuemax={Math.round(maxWidth(zone, aspect) * 10) / 10}
           onPointerDown={(e) => down("move", e)} onKeyDown={key}
           className="absolute cursor-move outline-none ring-1 ring-sky-500/80 focus-visible:ring-2"
           style={{ left: (artL - cx) * s, top: (by + place.y * sy - cy) * s, width: Math.max(8, (artR - artL) * s), height: place.w * aspect * sy * s }}>

@@ -39,7 +39,7 @@ const SHAPES: Record<Kind, Shape> = {
   },
 };
 
-export function Mockup({ kind, src, zoom = 1, fit = false, uid = "", tint = "#fafafa" }: { kind: Kind; src?: string; zoom?: number; fit?: boolean; uid?: string; tint?: string }) {
+export function Mockup({ kind, src, zoom = 1, fit = false, uid = "", tint = "#fafafa", placeholder = "הגרפיקה שלך כאן", label = "תצוגה מקדימה של המוצר עם הגרפיקה" }: { kind: Kind; src?: string; zoom?: number; fit?: boolean; uid?: string; tint?: string; placeholder?: string; label?: string }) {
   const { body, area, clip, rx = 0 } = SHAPES[kind];
   const [x, y, w, h] = area;
   const id = `clip-${kind}${uid}`; // unique per instance: several mockups can share a page
@@ -47,7 +47,7 @@ export function Mockup({ kind, src, zoom = 1, fit = false, uid = "", tint = "#fa
   const n = parseInt(tint.slice(1), 16);
   const dark = 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255) < 128;
   return (
-    <svg viewBox="0 0 400 400" className="h-full w-full" role="img" aria-label="תצוגה מקדימה של המוצר עם הגרפיקה">
+    <svg viewBox="0 0 400 400" className="h-full w-full" role="img" aria-label={label}>
       <defs>
         <clipPath id={id}>{clip === "circle" ? <circle cx="200" cy="200" r="135" /> : <rect x={x} y={y} width={w} height={h} rx={rx} />}</clipPath>
       </defs>
@@ -55,7 +55,7 @@ export function Mockup({ kind, src, zoom = 1, fit = false, uid = "", tint = "#fa
       {src ? (
         <image href={src} x={x + (w - iw) / 2} y={y + (h - ih) / 2} width={iw} height={ih} preserveAspectRatio={fit ? "xMidYMid meet" : "xMidYMid slice"} clipPath={`url(#${id})`} />
       ) : (
-        <text x={x + w / 2} y={y + h / 2} textAnchor="middle" dominantBaseline="middle" fill={dark ? "#d4d4d4" : "#a3a3a3"} fontSize="15">הגרפיקה שלך כאן</text>
+        <text x={x + w / 2} y={y + h / 2} textAnchor="middle" dominantBaseline="middle" fill={dark ? "#d4d4d4" : "#a3a3a3"} fontSize="15">{placeholder}</text>
       )}
     </svg>
   );

@@ -4,6 +4,7 @@ const nextConfig: NextConfig = {
   devIndicators: false,
   cacheComponents: true,
   partialPrefetching: true,
+  experimental: { globalNotFound: true },
   turbopack: {
     rules: {
       "*.css": {

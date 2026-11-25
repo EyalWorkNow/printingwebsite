@@ -1,8 +1,20 @@
 import path from "node:path";
 import nodemailer from "nodemailer";
-import { ils, addBusinessDays, lineFiles, type Line } from "./catalog";
+import { addBusinessDays, fill, lineFiles, money, HE_MARKET, type Line } from "./catalog";
 import { type Order } from "./orders";
 import { read } from "./storage";
+import { DEFAULT_LOCALE, LOCALE_META, localePath, type Locale } from "@/i18n/config";
+import { DICTS, type Dict } from "@/i18n/dicts";
+
+/** Language context of one email: the shop owner always reads Hebrew; the customer gets the order's language.
+ *  Amounts are always in the order's currency. */
+type L = { lang: Locale; d: Dict; dir: "rtl" | "ltr"; intl: string; m: (n: number) => string; weekend: number[] };
+function ctx(o: Order, forCustomer: boolean): L {
+  const lang = forCustomer ? o.lang ?? DEFAULT_LOCALE : DEFAULT_LOCALE;
+  const intl = LOCALE_META[lang].intl, currency = o.currency ?? "ILS";
+  const weekend = (o.lang ?? DEFAULT_LOCALE) === DEFAULT_LOCALE ? HE_MARKET.weekend : [0, 6];
+  return { lang, d: DICTS[lang], dir: LOCALE_META[lang].dir, intl, weekend, m: money({ market: { currency, vat: 0, intl, weekend } }) };
+}
 
 // New-order email in the glowing-effect-demo look. Email clients don't run JS, so the
 // mouse-follow glow becomes a CSS-animated gradient border (Apple Mail / iOS / Outlook.com animate;
@@ -29,8 +41,8 @@ const hero = (alt: string) => `<tr><td style="padding-bottom:12px"><table role="
 <img src="cid:${ART_CID}" width="598" alt="${esc(alt)}" style="display:block;width:100%;height:auto;border:0;border-radius:17px;background:#0a0a0a"></td></tr></table></td></tr>`;
 
 /** Order progress: done steps green, current step pulses. */
-const tracker = (o: Order) => {
-  const steps = ["התקבלה", "בדיקת קבצים", "ייצור", o.totals.shippingMethod === "pickup" ? "מוכן לאיסוף" : "במשלוח"];
+const tracker = (o: Order, L: L) => {
+  const tr = L.d.email.tracker, steps = [tr[0], tr[1], tr[2], o.totals.shippingMethod === "pickup" ? L.d.email.trackerPickup : tr[3]];
   return `<tr><td class="rise" style="padding:4px 0 16px;animation-delay:80ms"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>${steps.map((s, i) => `
 <td width="25%" align="center" valign="top" style="padding:0 2px">
 <div style="height:4px;border-radius:2px;background:${i === 0 ? "#5a922c" : "#262626"}"></div>
@@ -39,8 +51,9 @@ const tracker = (o: Order) => {
 </tr></table></td></tr>`;
 };
 
-function shell(title: string, preheader: string, badge: string, inner: string, cta: { href: string; label: string }, footer: string) {
-  return `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+function shell(L: L, title: string, preheader: string, badge: string, inner: string, cta: { href: string; label: string }, footer: string) {
+  const end = L.dir === "rtl" ? "left" : "right";
+  return `<!doctype html><html lang="${L.lang}" dir="${L.dir}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="dark"><meta name="supported-color-schemes" content="dark"><title>${esc(title)}</title>
 <style>
 @keyframes glow{0%{background-position:0% 50%}100%{background-position:300% 50%}}
@@ -55,12 +68,12 @@ function shell(title: string, preheader: string, badge: string, inner: string, c
 <body style="margin:0;padding:0;background:#000;font-family:-apple-system,BlinkMacSystemFont,'SF Hebrew','Segoe UI',Arial,Helvetica,sans-serif;color:#fff">
 <div style="display:none;max-height:0;overflow:hidden">${esc(preheader)}</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#000"><tr><td align="center" style="padding:28px 12px">
-<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%" dir="rtl">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%" dir="${L.dir}">
 
 <tr><td style="padding:0 4px 20px"><table role="presentation" width="100%"><tr>
-<td style="font-size:22px;font-weight:700;color:#fff">דפוס<span style="color:#737373">.</span></td>
-<td align="left"><span style="display:inline-block;border:1px solid #404040;border-radius:999px;padding:4px 12px;font-size:12px;color:#d4d4d4">
-<span class="dot" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#dd7bbb;vertical-align:middle;margin-left:6px"></span>${esc(badge)}</span></td>
+<td style="font-size:22px;font-weight:700;color:#fff">${esc(L.d.meta.brand)}<span style="color:#737373">.</span></td>
+<td align="${end}"><span style="display:inline-block;border:1px solid #404040;border-radius:999px;padding:4px 12px;font-size:12px;color:#d4d4d4">
+<span class="dot" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#dd7bbb;vertical-align:middle;margin-inline-end:6px"></span>${esc(badge)}</span></td>
 </tr></table></td></tr>
 
 ${hero(badge)}${inner}<tr><td align="center" class="rise" style="padding:12px 0 8px;animation-delay:520ms">
@@ -69,60 +82,78 @@ ${hero(badge)}${inner}<tr><td align="center" class="rise" style="padding:12px 0 
 </table></td></tr></table></body></html>`;
 }
 
-const row = (k: string, v: string, strong = false) =>
-  `<tr><td style="padding:4px 0;color:#a3a3a3;font-size:14px">${k}</td><td align="left" style="padding:4px 0;font-size:${strong ? 18 : 14}px;color:#fff;${strong ? "font-weight:700" : ""}">${v}</td></tr>`;
-const priceTable = (o: Order) => { const t = o.totals; return `<table role="presentation" width="100%">
-${row("מוצרים", esc(ils(t.subtotal)))}${row(esc(t.shippingLabel), t.shipping ? esc(ils(t.shipping)) : "חינם")}${row("מע״מ", esc(ils(t.vat)))}${row("סה״כ", esc(ils(t.total)), true)}</table>`; };
+const row = (L: L, k: string, v: string, strong = false) =>
+  `<tr><td style="padding:4px 0;color:#a3a3a3;font-size:14px">${k}</td><td align="${L.dir === "rtl" ? "left" : "right"}" style="padding:4px 0;font-size:${strong ? 18 : 14}px;color:#fff;${strong ? "font-weight:700" : ""}">${v}</td></tr>`;
+const priceTable = (o: Order, L: L) => { const t = o.totals, e = L.d.email; return `<table role="presentation" width="100%">
+${row(L, e.products, esc(L.m(t.subtotal)))}${row(L, esc(t.shippingLabel), t.shipping ? esc(L.m(t.shipping)) : esc(e.free))}${t.vat ? row(L, e.vat, esc(L.m(t.vat))) : ""}${row(L, e.total, esc(L.m(t.total)), true)}</table>`; };
 const two = (a: string, b: string) => `<tr><td><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
 <td class="col" width="50%" valign="top" style="padding:0 0 12px 6px">${a}</td><td class="col" width="50%" valign="top" style="padding:0 6px 12px 0">${b}</td></tr></table></td></tr>`;
-const itemsTable = (items: Line[]) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0">${items.map((l) => `<tr><td style="padding:10px 0;border-bottom:1px solid #262626;vertical-align:top">
-<div style="font-size:15px;color:#fff;font-weight:600">${esc(l.quantity.toLocaleString("he-IL"))} × ${esc(l.productName)}</div>
-<div style="font-size:13px;color:#a3a3a3;line-height:20px">${l.labels.map(([k, v]) => `${esc(k)}: ${esc(v)}`).join(" · ")}<br>ייצור ${esc(l.productionLabel)} (${l.productionDays} ימי עסקים) ${sideRows(l)}</div></td>
-<td align="left" style="padding:10px 0;border-bottom:1px solid #262626;vertical-align:top;font-size:15px;color:#fff;white-space:nowrap">${esc(ils(l.subtotal))}</td></tr>`).join("")}</table>`;
+const itemsTable = (items: Line[], L: L) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0">${items.map((l) => `<tr><td style="padding:10px 0;border-bottom:1px solid #262626;vertical-align:top">
+<div style="font-size:15px;color:#fff;font-weight:600">${esc(l.quantity.toLocaleString(L.intl))} × ${esc(l.productName)}</div>
+<div style="font-size:13px;color:#a3a3a3;line-height:20px">${l.labels.map(([k, v]) => `${esc(k)}: ${esc(v)}`).join(" · ")}<br>${esc(fill(L.d.email.production, { label: l.productionLabel, n: l.productionDays }))} ${sideRows(l, L)}</div></td>
+<td align="${L.dir === "rtl" ? "left" : "right"}" style="padding:10px 0;border-bottom:1px solid #262626;vertical-align:top;font-size:15px;color:#fff;white-space:nowrap">${esc(L.m(l.subtotal))}</td></tr>`).join("")}</table>`;
 // one row per printed side: file status + where/how big
 const missingArt = (l: Line) => { const f = lineFiles(l); return !f.length || f.some((x) => !x.artwork); };
-const sideRows = (l: Line) => { const f = lineFiles(l); return f.length
-  ? f.map((x) => `<br>${x.label ? `${esc(x.label)}: ` : ""}${x.artwork ? "גרפיקה צורפה ✓" : `<span style="color:#fbbf24">חסרה גרפיקה</span>`}${x.placement ? ` · ${esc(x.placement)}` : ""}`).join("")
-  : ` · <span style="color:#fbbf24">חסרה גרפיקה</span>`; };
+const sideRows = (l: Line, L: L) => { const f = lineFiles(l), e = L.d.email; return f.length
+  ? f.map((x) => `<br>${x.label ? `${esc(x.label)}: ` : ""}${x.artwork ? esc(e.artOk) : `<span style="color:#fbbf24">${esc(e.artMissing)}</span>`}${x.placement ? ` · ${esc(x.placement)}` : ""}`).join("")
+  : ` · <span style="color:#fbbf24">${esc(e.artMissing)}</span>`; };
 const summary = (o: Order) => o.items.map((l) => `${l.quantity} × ${l.productName}`).join(", ");
-const eta = (o: Order) => addBusinessDays(new Date(o.createdAt), Math.max(...o.items.map((l) => l.productionDays)) + o.totals.shippingDays)
-  .toLocaleDateString("he-IL", { weekday: "long", day: "numeric", month: "long", timeZone: "Asia/Jerusalem" });
-const where = (o: Order) => o.totals.shippingMethod === "pickup" ? "איסוף עצמי — נתאם בטלפון" : `${esc(o.customer.address)}, ${esc(o.customer.city)}`;
+const eta = (o: Order, L: L) => addBusinessDays(new Date(o.createdAt), Math.max(...o.items.map((l) => l.productionDays)) + o.totals.shippingDays, L.weekend)
+  .toLocaleDateString(L.intl, { weekday: "long", day: "numeric", month: "long", timeZone: "Asia/Jerusalem" });
+const where = (o: Order, L: L) => o.totals.shippingMethod === "pickup" ? esc(L.d.email.pickupWhere) : `${esc(o.customer.address)}, ${esc(o.customer.city)}${o.customer.zip ? ` ${esc(o.customer.zip)}` : ""}`;
 
 export function renderOrderEmail(o: Order) {
-  const t = o.totals, c = o.customer;
+  const t = o.totals, c = o.customer, L = ctx(o, false), ils = L.m;
+  const market = o.lang && o.lang !== DEFAULT_LOCALE ? ` · אתר ${LOCALE_META[o.lang].name} (${o.currency})` : "";
   const admin = `${site()}/admin?q=${encodeURIComponent(o.id)}`;
   const missing = o.items.filter(missingArt).length;
 
-  const html = shell(`הזמנה חדשה ${o.id}`, `${c.name} · ${summary(o)} · ${ils(t.total)}`, "הזמנה חדשה", `<tr><td style="padding-bottom:12px">${card("✦ " + esc(o.id),
+  const html = shell(L, `הזמנה חדשה ${o.id}`, `${c.name} · ${summary(o)} · ${ils(t.total)}`, "הזמנה חדשה", `<tr><td style="padding-bottom:12px">${card("✦ " + esc(o.id),
   `<span style="font-size:28px;line-height:36px">${esc(ils(t.total))}</span>`,
-  `${o.items.length} פריטים · ${esc(t.shippingLabel)} · יעד משוער ${esc(eta(o))}<br>${o.source === "chat" ? "התקבלה בצ׳אט ה-AI" : "התקבלה באתר"} · ${esc(new Date(o.createdAt).toLocaleString("he-IL", { dateStyle: "short", timeStyle: "short", timeZone: "Asia/Jerusalem" }))}`, 0, "padding:26px")}</td></tr>
-<tr><td style="padding-bottom:12px">${card("▣ פריטים", missing ? `<span style="color:#fbbf24">חסרה גרפיקה ${missing === 1 ? "בפריט אחד" : `ב-${missing} פריטים`}</span>` : "כל הקבצים צורפו ✓", itemsTable(o.items), 120)}</td></tr>
+  `${o.items.length} פריטים · ${esc(t.shippingLabel)} · יעד משוער ${esc(eta(o, L))}<br>${o.source === "chat" ? "התקבלה בצ׳אט ה-AI" : "התקבלה באתר"}${esc(market)} · ${esc(new Date(o.createdAt).toLocaleString("he-IL", { dateStyle: "short", timeStyle: "short", timeZone: "Asia/Jerusalem" }))}`, 0, "padding:26px")}</td></tr>
+<tr><td style="padding-bottom:12px">${card("▣ פריטים", missing ? `<span style="color:#fbbf24">חסרה גרפיקה ${missing === 1 ? "בפריט אחד" : `ב-${missing} פריטים`}</span>` : "כל הקבצים צורפו ✓", itemsTable(o.items, L), 120)}</td></tr>
 ${two(card("☺ לקוח", esc(c.name), `<a href="tel:${esc(c.phone)}" style="color:#d4d4d4;text-decoration:none" dir="ltr">${esc(c.phone)}</a>${c.email ? `<br><a href="mailto:${esc(c.email)}" style="color:#d4d4d4">${esc(c.email)}</a>` : ""}${c.business ? `<br>${esc(c.business)}${c.businessId ? ` · ${esc(c.businessId)}` : ""}` : ""}`, 220),
-  card("➜ " + esc(t.shippingLabel), t.shippingMethod === "pickup" ? "איסוף עצמי" : esc(c.city), `${where(o)}${c.notes ? `<br>הערות: ${esc(c.notes)}` : ""}<br>תשלום: טלפוני`, 320))}
-<tr><td style="padding-bottom:12px">${card("₪ פירוט", "סיכום מחיר", priceTable(o), 420)}</td></tr>`, { href: admin, label: "פתיחה בממשק הניהול" }, "התראה אוטומטית מאתר דפוס");
+  card("➜ " + esc(t.shippingLabel), t.shippingMethod === "pickup" ? "איסוף עצמי" : esc(c.city), `${where(o, L)}${c.notes ? `<br>הערות: ${esc(c.notes)}` : ""}<br>תשלום: טלפוני`, 320))}
+<tr><td style="padding-bottom:12px">${card("₪ פירוט", "סיכום מחיר", priceTable(o, L), 420)}</td></tr>`, { href: admin, label: "פתיחה בממשק הניהול" }, "התראה אוטומטית מאתר דפוס");
 
   const text = [`הזמנה חדשה ${o.id} — ${ils(t.total)}`, ...o.items.map((l) => `• ${l.quantity} × ${l.productName} (${l.labels.map(([k, v]) => `${k}: ${v}`).join(", ")}) — ${ils(l.subtotal)}${missingArt(l) ? " [חסרה גרפיקה]" : ""}${lineFiles(l).map((f) => f.placement ? ` | ${f.placement}` : "").join("")}`),
     `לקוח: ${c.name}, ${c.phone}${c.email ? ", " + c.email : ""}`, `משלוח: ${t.shippingLabel}${t.shippingMethod === "pickup" ? "" : ` — ${c.address}, ${c.city}`}`, admin].join("\n");
   return { subject: `הזמנה חדשה ${o.id} · ${c.name} · ${ils(t.total)}`, html, text };
 }
 
-/** Confirmation to the customer (only when they left an email). */
+/** Confirmation to the customer, in the order's language. */
 export function renderCustomerEmail(o: Order) {
-  const t = o.totals, c = o.customer;
-  const steps = ["נבדוק את קבצי הגרפיקה ונחזור אליך לאישור", "תשלום טלפוני — נתקשר תוך יום עסקים", `ייצור ו${t.shippingMethod === "pickup" ? "איסוף" : "משלוח"} — יעד משוער ${eta(o)}`]
+  const t = o.totals, c = o.customer, L = ctx(o, true), e = L.d.email, brand = L.d.meta.brand;
+  const summary = o.items.map((l) => `${l.quantity.toLocaleString(L.intl)} × ${l.productName}`).join(", ");
+  const steps = e.nextSteps.map((x) => fill(x, { delivery: t.shippingMethod === "pickup" ? e.deliveryPickup : e.deliveryShip, eta: eta(o, L) }))
     .map((x, i) => `<div style="padding:3px 0"><span style="color:#737373">0${i + 1}</span>&nbsp; ${esc(x)}</div>`).join("");
-  const html = shell(`ההזמנה ${o.id} התקבלה`, `תודה ${c.name}! ההזמנה ${o.id} התקבלה · ${ils(t.total)}`, "ההזמנה התקבלה",
-    `${tracker(o)}<tr><td style="padding-bottom:12px">${card("✦ " + esc(o.id), `<span style="font-size:26px;line-height:34px">תודה, ${esc(c.name)}!</span>`,
-      `קיבלנו את ההזמנה שלך: ${esc(summary(o))}`, 0, "padding:26px")}</td></tr>
-<tr><td style="padding-bottom:12px">${card("▣ ההזמנה שלך", `${o.items.length} פריטים`, itemsTable(o.items), 120)}</td></tr>
-${two(card("➜ מה הלאה", "השלבים הבאים", steps, 220), card("₪ פירוט", "סיכום מחיר", priceTable(o), 320))}
-<tr><td style="padding-bottom:12px">${card("⌂ " + esc(t.shippingLabel), t.shippingMethod === "pickup" ? "איסוף עצמי" : esc(c.city), where(o), 420)}</td></tr>`,
-    { href: `${site()}/#chat`, label: "שאלה? דברו איתנו בצ׳אט" }, "דפוס · בית דפוס דיגיטלי");
-  const text = [`תודה ${c.name}! ההזמנה ${o.id} התקבלה.`, ...o.items.map((l) => `• ${l.quantity} × ${l.productName} — ${ils(l.subtotal)}`), `סה״כ ${ils(t.total)} כולל מע״מ ומשלוח`, `יעד משוער: ${eta(o)}`, "נחזור אליך לאישור הגרפיקה ולתשלום.", site()].join("\n");
-  return { subject: `ההזמנה ${o.id} התקבלה — דפוס`, html, text };
+  const html = shell(L, fill(e.subject, { id: o.id, brand }), fill(e.preheader, { name: c.name, id: o.id, total: L.m(t.total) }), e.badge,
+    `${tracker(o, L)}<tr><td style="padding-bottom:12px">${card("✦ " + esc(o.id), `<span style="font-size:26px;line-height:34px">${esc(fill(e.thanks, { name: c.name }))}</span>`,
+      esc(fill(e.received, { summary })), 0, "padding:26px")}</td></tr>
+<tr><td style="padding-bottom:12px">${card("▣ " + esc(e.yourOrder), esc(fill(e.itemsCount, { n: o.items.length })), itemsTable(o.items, L), 120)}</td></tr>
+${two(card("➜ " + esc(e.next), esc(e.nextTitle), steps, 220), card("≡ " + esc(e.price), esc(e.priceTitle), priceTable(o, L), 320))}
+<tr><td style="padding-bottom:12px">${card("⌂ " + esc(t.shippingLabel), t.shippingMethod === "pickup" ? esc(e.pickup) : esc(c.city), where(o, L), 420)}</td></tr>`,
+    { href: `${site()}${localePath(L.lang, "/")}#chat`, label: e.cta }, fill(e.footer, { brand }));
+  const text = [fill(e.textThanks, { name: c.name, id: o.id }), ...o.items.map((l) => `• ${l.quantity} × ${l.productName} — ${L.m(l.subtotal)}`), fill(e.textTotal, { total: L.m(t.total) }), fill(e.textEta, { eta: eta(o, L) }), e.textNext, `${site()}${localePath(L.lang, "/")}`].join("\n");
+  return { subject: fill(e.subject, { id: o.id, brand }), html, text };
 }
 
+async function transport() {
+  const url = process.env.SMTP_URL;
+  if (!url) return undefined;
+  const t = nodemailer.createTransport(url);
+  const from = (name: string) => process.env.MAIL_FROM ?? `"${name}" <${decodeURIComponent(new URL(url).username)}>`;
+  return { t, from };
+}
+const artAttachment = async () => ({ filename: "print.gif", content: await (await import("./email-art")).printGif(), cid: ART_CID, contentDisposition: "inline" as const });
+
+/** Customer confirmation only (also used by "email me the order details"). */
+export async function sendCustomerEmail(o: Order) {
+  const tr = await transport();
+  if (!tr || !o.customer.email) return console.warn("[order-email] customer email skipped", o.id);
+  const m = renderCustomerEmail(o);
+  await tr.t.sendMail({ from: tr.from(DICTS[o.lang ?? DEFAULT_LOCALE].meta.brand), to: o.customer.email, subject: m.subject, html: m.html, text: m.text, attachments: [await artAttachment()] });
+}
 export async function sendOrderEmail(o: Order) {
   const url = process.env.SMTP_URL, to = process.env.NOTIFY_EMAIL;
   if (!url || !to) return console.warn("[order-email] SMTP_URL/NOTIFY_EMAIL not set — skipping", o.id);
@@ -138,13 +169,8 @@ export async function sendOrderEmail(o: Order) {
       attachments.push({ filename: `${o.id}-${i + 1}-${f.side}${path.extname(f.artwork)}`, content });
     }
   }
-  const art = { filename: "print.gif", content: await (await import("./email-art")).printGif(), cid: ART_CID, contentDisposition: "inline" as const };
-  attachments.push(art);
-  const transport = nodemailer.createTransport(url);
-  const from = (name: string) => process.env.MAIL_FROM ?? `"${name}" <${decodeURIComponent(new URL(url).username)}>`;
-  await transport.sendMail({ from: from("דפוס — הזמנות"), to, subject, html, text, attachments });
-  if (o.customer.email) {
-    const m = renderCustomerEmail(o);
-    await transport.sendMail({ from: from("דפוס"), to: o.customer.email, subject: m.subject, html: m.html, text: m.text, attachments: [art] });
-  }
+  attachments.push(await artAttachment());
+  const tr = (await transport())!;
+  await tr.t.sendMail({ from: tr.from("דפוס — הזמנות"), to, subject, html, text, attachments });
+  if (o.customer.email) await sendCustomerEmail(o);
 }

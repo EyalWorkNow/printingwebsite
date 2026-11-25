@@ -34,11 +34,11 @@ function Tiers({ value, onChange, signed, empty }: { value: Tier[]; onChange: (t
     <div className="space-y-1.5">
       {value.length === 0 && <p className="text-xs text-muted-foreground">{empty ?? "ללא תוספת מחיר"}</p>}
       {value.map(([from, unit], i) => (
-        <div key={i} className="flex items-center gap-2 text-xs text-muted-foreground">
+        <div key={i} className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <span className="shrink-0">מ־</span>
-          <input type="number" min={1} step={1} value={show(from)} onChange={(e) => set(i, 0, num(e.target.value))} aria-label="מכמות" className={`${input} w-24`} />
+          <input type="number" min={1} step={1} value={show(from)} onChange={(e) => set(i, 0, num(e.target.value))} aria-label="מכמות" className={`${input} w-24 min-w-20`} />
           <span className="shrink-0">יח׳ ←</span>
-          <input type="number" step="0.001" min={signed ? undefined : 0} value={show(unit)} onChange={(e) => set(i, 1, num(e.target.value))} aria-label="מחיר ליחידה לפני מע״מ" className={`${input} w-28`} />
+          <input type="number" step="0.001" min={signed ? undefined : 0} value={show(unit)} onChange={(e) => set(i, 1, num(e.target.value))} aria-label="מחיר ליחידה לפני מע״מ" className={`${input} w-28 min-w-24`} />
           <span className="w-24 shrink-0">₪ ליח׳{Number.isFinite(unit) && <span className="text-muted-foreground"> ({ils(withVat(unit))})</span>}</span>
           <button type="button" onClick={() => onChange(value.filter((_, k) => k !== i))} aria-label="מחיקת מדרגה" className="p-1.5 hover:text-red-600 dark:hover:text-red-400"><X className="h-3.5 w-3.5" /></button>
         </div>

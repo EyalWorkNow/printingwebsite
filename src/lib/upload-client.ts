@@ -4,10 +4,10 @@
 const TYPES: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "application/pdf": "pdf", "image/svg+xml": "svg" };
 let mode: Promise<boolean> | undefined;
 
-export async function uploadArtwork(f: File): Promise<string> {
+export async function uploadArtwork(f: File, t: { fileType: string; fileSize: string }): Promise<string> {
   const ext = TYPES[f.type];
-  if (!ext) throw new Error("סוג קובץ לא נתמך (PDF/PNG/JPG/WEBP/SVG)");
-  if (f.size > 25 * 1024 * 1024) throw new Error("הקובץ גדול מ-25MB");
+  if (!ext) throw new Error(t.fileType);
+  if (f.size > 25 * 1024 * 1024) throw new Error(t.fileSize);
   mode ??= fetch("/api/upload").then((r) => r.json()).then((r) => !!r.direct).catch(() => false);
   if (await mode) {
     const { upload } = await import("@vercel/blob/client");

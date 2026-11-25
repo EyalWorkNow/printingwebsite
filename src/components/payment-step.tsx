@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { CreditCard, Phone, Lock, Loader2, Info, Smartphone } from "lucide-react";
-import { ils } from "@/lib/catalog";
+import { money } from "@/lib/catalog";
+import { useCatalog } from "./catalog-provider";
+import { useI18n } from "@/i18n/client";
 import { luhn, cardBrand, formatCard, formatExpiry, expiryOk, israeliIdOk, maxInstallments, digits } from "@/lib/payment";
 
 // Payment step. Credit card + Bit are UI only (not connected to a clearing provider yet):
@@ -13,6 +15,8 @@ const BRAND: Record<string, string> = { visa: "VISA", mastercard: "Mastercard", 
 type Method = "card" | "bit" | "phone";
 
 export function PaymentStep({ total, busy, err, canSubmit, onPhoneOrder, recap }: { total: number; busy: boolean; err: string; canSubmit: boolean; onPhoneOrder: () => void; recap: React.ReactNode }) {
+  const { lang, d, f } = useI18n();
+  const t = d.payment, il = lang === "he", m = money(useCatalog());
   const [method, setMethod] = useState<Method>("card");
   const [card, setCard] = useState({ number: "", name: "", expiry: "", cvv: "", id: "", installments: "1" });
   const [touched, setTouched] = useState<Record<string, boolean>>({});
@@ -23,14 +27,14 @@ export function PaymentStep({ total, busy, err, canSubmit, onPhoneOrder, recap }
   const brand = cardBrand(card.number);
   const amex = brand === "amex";
   const errors: Record<string, string | undefined> = {
-    number: brand === "isracard" ? undefined : luhn(card.number) ? undefined : "מספר כרטיס לא תקין",
-    name: card.name.trim().length >= 2 ? undefined : "יש להזין שם בעל הכרטיס",
-    expiry: expiryOk(card.expiry) ? undefined : "תוקף לא תקין או שפג",
-    cvv: digits(card.cvv).length === (amex ? 4 : 3) ? undefined : `${amex ? 4 : 3} ספרות בגב הכרטיס`,
-    id: israeliIdOk(card.id) ? undefined : "תעודת זהות לא תקינה",
+    number: brand === "isracard" ? undefined : luhn(card.number) ? undefined : t.numberBad,
+    name: card.name.trim().length >= 2 ? undefined : t.holderBad,
+    expiry: expiryOk(card.expiry) ? undefined : t.expiryBad,
+    cvv: digits(card.cvv).length === (amex ? 4 : 3) ? undefined : f(t.cvvBad, { n: amex ? 4 : 3 }),
+    id: !il || israeliIdOk(card.id) ? undefined : t.idBad, // Israeli ID is asked only on the Israeli site
   };
   const show = (k: string) => (touched[k] || tried) && errors[k];
-  const max = maxInstallments(total);
+  const max = il ? maxInstallments(total) : 1; // installments are an Israeli card feature
   const per = total / Number(card.installments);
 
   function pay(e: React.FormEvent) {
@@ -42,36 +46,36 @@ export function PaymentStep({ total, busy, err, canSubmit, onPhoneOrder, recap }
 
   return (
     <form onSubmit={pay} className="space-y-5" noValidate autoComplete="off">
-      <h2 className="text-lg font-semibold">תשלום</h2>
+      <h2 className="text-lg font-semibold">{t.title}</h2>
       <div className="grid gap-3">
-        <PayOption on={method === "card"} pick={() => { setMethod("card"); setTried(false); }} soon icon={CreditCard} title="כרטיס אשראי" sub="ויזה, מאסטרקארד, ישראכרט, אמריקן אקספרס, דיינרס" />
-        <PayOption on={method === "bit"} pick={() => { setMethod("bit"); setTried(false); }} soon icon={Smartphone} title="ביט" sub="תשלום מהיר מהנייד" />
-        <PayOption on={method === "phone"} pick={() => { setMethod("phone"); setTried(false); }} icon={Phone} title="תשלום טלפוני" sub="נבדוק את הקבצים ונתקשר לחיוב תוך יום עסקים" />
+        <PayOption on={method === "card"} pick={() => { setMethod("card"); setTried(false); }} soon={t.soon} icon={CreditCard} title={t.card} sub={t.cardSub} />
+        {il && <PayOption on={method === "bit"} pick={() => { setMethod("bit"); setTried(false); }} soon={t.soon} icon={Smartphone} title={t.bit} sub={t.bitSub} />}
+        <PayOption on={method === "phone"} pick={() => { setMethod("phone"); setTried(false); }} icon={Phone} title={t.phone} sub={t.phoneSub} />
       </div>
 
       {method === "card" && (
         <div className="grid gap-5 md:grid-cols-[1fr_15rem]">
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="space-y-1 text-sm sm:col-span-2"><span className="text-muted-foreground">מספר כרטיס</span>
-              <input inputMode="numeric" dir="ltr" placeholder="0000 0000 0000 0000" value={formatCard(card.number)} onChange={(e) => set("number", digits(e.target.value))} onBlur={touch("number")} aria-invalid={!!show("number")} className={`${input} text-left tracking-wider`} autoComplete="off" />
+            <label className="space-y-1 text-sm sm:col-span-2"><span className="text-muted-foreground">{t.number}</span>
+              <input inputMode="numeric" dir="ltr" placeholder="0000 0000 0000 0000" value={formatCard(card.number)} onChange={(e) => set("number", digits(e.target.value))} onBlur={touch("number")} aria-invalid={!!show("number")} className={`${input} text-start tracking-wider`} autoComplete="off" />
               {show("number") && <span className="text-xs text-red-600 dark:text-red-400">{errors.number}</span>}</label>
-            <label className="space-y-1 text-sm sm:col-span-2"><span className="text-muted-foreground">שם בעל הכרטיס</span>
+            <label className="space-y-1 text-sm sm:col-span-2"><span className="text-muted-foreground">{t.holder}</span>
               <input value={card.name} onChange={(e) => set("name", e.target.value)} onBlur={touch("name")} aria-invalid={!!show("name")} className={input} autoComplete="off" />
               {show("name") && <span className="text-xs text-red-600 dark:text-red-400">{errors.name}</span>}</label>
-            <label className="space-y-1 text-sm"><span className="text-muted-foreground">תוקף</span>
-              <input inputMode="numeric" dir="ltr" placeholder="MM/YY" value={card.expiry} onChange={(e) => set("expiry", formatExpiry(e.target.value))} onBlur={touch("expiry")} aria-invalid={!!show("expiry")} className={`${input} text-left`} autoComplete="off" />
+            <label className="space-y-1 text-sm"><span className="text-muted-foreground">{t.expiry}</span>
+              <input inputMode="numeric" dir="ltr" placeholder="MM/YY" value={card.expiry} onChange={(e) => set("expiry", formatExpiry(e.target.value))} onBlur={touch("expiry")} aria-invalid={!!show("expiry")} className={`${input} text-start`} autoComplete="off" />
               {show("expiry") && <span className="text-xs text-red-600 dark:text-red-400">{errors.expiry}</span>}</label>
             <label className="space-y-1 text-sm"><span className="text-muted-foreground">CVV</span>
-              <input inputMode="numeric" dir="ltr" placeholder={amex ? "0000" : "000"} value={card.cvv} onChange={(e) => set("cvv", digits(e.target.value).slice(0, amex ? 4 : 3))} onBlur={touch("cvv")} aria-invalid={!!show("cvv")} className={`${input} text-left`} autoComplete="off" />
+              <input inputMode="numeric" dir="ltr" placeholder={amex ? "0000" : "000"} value={card.cvv} onChange={(e) => set("cvv", digits(e.target.value).slice(0, amex ? 4 : 3))} onBlur={touch("cvv")} aria-invalid={!!show("cvv")} className={`${input} text-start`} autoComplete="off" />
               {show("cvv") && <span className="text-xs text-red-600 dark:text-red-400">{errors.cvv}</span>}</label>
-            <label className="space-y-1 text-sm"><span className="text-muted-foreground">ת.ז בעל הכרטיס</span>
-              <input inputMode="numeric" dir="ltr" value={card.id} onChange={(e) => set("id", digits(e.target.value).slice(0, 9))} onBlur={touch("id")} aria-invalid={!!show("id")} className={`${input} text-left`} autoComplete="off" />
-              {show("id") && <span className="text-xs text-red-600 dark:text-red-400">{errors.id}</span>}</label>
-            <label className="space-y-1 text-sm"><span className="text-muted-foreground">תשלומים</span>
+            {il && <label className="space-y-1 text-sm"><span className="text-muted-foreground">{t.id}</span>
+              <input inputMode="numeric" dir="ltr" value={card.id} onChange={(e) => set("id", digits(e.target.value).slice(0, 9))} onBlur={touch("id")} aria-invalid={!!show("id")} className={`${input} text-start`} autoComplete="off" />
+              {show("id") && <span className="text-xs text-red-600 dark:text-red-400">{errors.id}</span>}</label>}
+            {il && <label className="space-y-1 text-sm"><span className="text-muted-foreground">{t.installments}</span>
               <select value={card.installments} onChange={(e) => set("installments", e.target.value)} className={input} disabled={max === 1}>
-                {Array.from({ length: max }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n === 1 ? "תשלום אחד" : `${n} תשלומים ללא ריבית`}</option>)}
+                {Array.from({ length: max }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n === 1 ? t.one : f(t.many, { n })}</option>)}
               </select>
-              {max === 1 && <span className="text-xs text-muted-foreground">תשלומים מהזמנה של ₪300</span>}</label>
+              {max === 1 && <span className="text-xs text-muted-foreground">{f(t.installmentsFrom, { amount: m(300) })}</span>}</label>}
           </div>
 
           {/* live card preview */}
@@ -86,33 +90,33 @@ export function PaymentStep({ total, busy, err, canSubmit, onPhoneOrder, recap }
         </div>
       )}
 
-      {method === "bit" && <p className="rounded-xl border p-4 text-sm text-muted-foreground">בסיום ההזמנה תישלח לטלפון שלכם בקשת תשלום בביט.</p>}
+      {method === "bit" && <p className="rounded-xl border p-4 text-sm text-muted-foreground">{t.bitInfo}</p>}
 
       {recap}
 
       {method !== "phone" && (
         <p className="flex items-start gap-2 rounded-xl border border-amber-500/60 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/30 p-3 text-xs text-amber-900 dark:text-amber-200" role="note">
-          <Info className="mt-0.5 h-4 w-4 shrink-0" /> תשלום {method === "card" ? "באשראי" : "בביט"} עדיין לא פעיל באתר — לא יבוצע חיוב ולא תישלח הזמנה. כדי להזמין עכשיו בחרו ״תשלום טלפוני״.
+          <Info className="mt-0.5 h-4 w-4 shrink-0" /> {f(t.inactive, { method: method === "card" ? t.inactiveCard : t.inactiveBit, phone: t.phone })}
         </p>
       )}
       {err && <p className="text-sm text-red-600 dark:text-red-400" role="alert">{err}</p>}
 
       <button disabled={busy || !canSubmit} className="flex w-full items-center justify-center gap-2 rounded-lg bg-foreground py-3 font-medium text-background disabled:opacity-50">
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
-        {method === "phone" ? "אישור וסיום הזמנה" : method === "card" ? `תשלום ${ils(total)}${Number(card.installments) > 1 ? ` (${card.installments} × ${ils(Math.round(per * 100) / 100)})` : ""}` : `תשלום ${ils(total)} בביט`}
+        {method === "phone" ? t.confirm : method === "card" ? f(t.pay, { amount: m(total) }) + (Number(card.installments) > 1 ? f(t.payInstallments, { n: card.installments, amount: m(Math.round(per * 100) / 100) }) : "") : f(t.payBit, { amount: m(total) })}
       </button>
-      <p className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground"><Lock className="h-3.5 w-3.5" /> פרטי הכרטיס לא נשמרים ולא נשלחים לשרת שלנו</p>
+      <p className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground"><Lock className="h-3.5 w-3.5" /> {t.secure}</p>
     </form>
   );
 }
 
-function PayOption({ on, pick, soon, icon: I, title, sub }: { on: boolean; pick: () => void; soon?: boolean; icon: typeof Phone; title: string; sub: string }) {
+function PayOption({ on, pick, soon, icon: I, title, sub }: { on: boolean; pick: () => void; soon?: string; icon: typeof Phone; title: string; sub: string }) {
   return (
     <label className={`flex cursor-pointer items-center gap-3 rounded-xl border p-4 ${on ? "border-foreground bg-foreground/5" : "hover:border-foreground/40"}`}>
       <input type="radio" name="pay" checked={on} onChange={pick} className="accent-foreground" />
       <I className="h-5 w-5 text-muted-foreground" />
       <span className="flex-1 space-y-0.5"><span className="block font-medium">{title}</span><span className="block text-xs text-muted-foreground">{sub}</span></span>
-      {soon && <span className="rounded-full border border-amber-500/60 dark:border-amber-800/60 px-2 py-0.5 text-[11px] text-amber-700 dark:text-amber-300">בקרוב</span>}
+      {soon && <span className="rounded-full border border-amber-500/60 dark:border-amber-800/60 px-2 py-0.5 text-[11px] text-amber-700 dark:text-amber-300">{soon}</span>}
     </label>
   );
 }
