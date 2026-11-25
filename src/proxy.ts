@@ -1,15 +1,19 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { isAdmin } from "@/lib/admin-auth";
+import { adminConfigured, isAdmin } from "@/lib/admin-auth";
 import { DEFAULT_LOCALE, isLocale } from "@/i18n/config";
 
-// 1. /admin + /api/admin: HTTP Basic auth.
+// 1. /admin + /api/admin: HTTP Basic auth (lib/admin-auth). /admin/setup (set/reset the login with an owner secret) is open;
+//    before any login exists, /admin redirects there.
 // 2. Shop: Hebrew lives at the root — "/p/mug" is served by app/[lang] with lang=he (internal rewrite), and "/he/…"
 //    redirects to the clean URL. Other languages have their own prefix ("/en/p/mug") and pass through untouched.
-export function proxy(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
   if (pathname.startsWith("/admin") || pathname.startsWith("/api/admin")) {
-    if (isAdmin(req.headers.get("authorization"))) return NextResponse.next();
-    return new NextResponse("נדרשת התחברות", { status: 401, headers: { "WWW-Authenticate": 'Basic realm="dfus-admin", charset="UTF-8"' } });
+    if (pathname === "/admin/setup" || await isAdmin(req.headers.get("authorization"))) return NextResponse.next();
+    if (pathname.startsWith("/admin") && !await adminConfigured()) return NextResponse.redirect(new URL("/admin/setup", req.url));
+    return new NextResponse('<!doctype html><meta charset="utf-8"><body dir="rtl" style="font:16px system-ui;padding:2rem">נדרשת התחברות · Login required — <a href="/admin/setup">הגדרת כניסה / Set up login</a>', {
+      status: 401, headers: { "Content-Type": "text/html; charset=utf-8", "WWW-Authenticate": 'Basic realm="dfus-admin", charset="UTF-8"' },
+    });
   }
   const first = pathname.split("/")[1];
   if (first === DEFAULT_LOCALE) {

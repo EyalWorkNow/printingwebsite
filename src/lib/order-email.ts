@@ -1,3 +1,4 @@
+import { SITE_URL } from "@/lib/env";
 import path from "node:path";
 import nodemailer from "nodemailer";
 import { addBusinessDays, fill, lineFiles, money, HE_MARKET, type Line } from "./catalog";
@@ -23,7 +24,7 @@ function ctx(o: Order, forCustomer: boolean): L {
 const esc = (s: unknown) => String(s ?? "").replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 const GLOW = "linear-gradient(90deg,#dd7bbb,#d79f1e,#5a922c,#4c7894,#dd7bbb,#d79f1e)";
 export const ART_CID = "printrun@dfus"; // animated hero GIF (email-art.ts), attached inline
-const site = () => process.env.SITE_URL ?? "http://localhost:3007";
+const site = () => SITE_URL;
 
 function card(icon: string, title: string, body: string, delay: number, extra = "") {
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="rise" style="animation-delay:${delay}ms;border-collapse:separate">

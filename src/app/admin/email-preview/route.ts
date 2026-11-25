@@ -4,7 +4,7 @@ import { renderOrderEmail, renderCustomerEmail, ART_CID } from "@/lib/order-emai
 
 // /admin/email-preview[?id=DP-…][&to=customer] — shows the notification email for an order (latest by default)
 export async function GET(req: Request) {
-  if (!isAdmin(req.headers.get("authorization"))) return new Response(null, { status: 401 });
+  if (!await isAdmin(req.headers.get("authorization"))) return new Response(null, { status: 401 });
   const id = new URL(req.url).searchParams.get("id");
   const o = id ? await getOrder(id) : (await listOrders({ limit: 1 }))[0];
   if (!o) return new Response("No orders", { status: 404 });

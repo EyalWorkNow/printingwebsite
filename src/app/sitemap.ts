@@ -1,9 +1,10 @@
+import { SITE_URL } from "@/lib/env";
 import type { MetadataRoute } from "next";
 import { liveProducts } from "@/lib/catalog";
 import { getCatalog } from "@/lib/catalog-store";
 import { LOCALES, localePath } from "@/i18n/config";
 
-const site = process.env.SITE_URL ?? "http://localhost:3007";
+const site = SITE_URL;
 
 // Every page in every language, each with hreflang alternates to its translations.
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {

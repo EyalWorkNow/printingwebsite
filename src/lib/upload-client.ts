@@ -1,21 +1,17 @@
 "use client";
 
-// Upload customer artwork → returns its id ("<uuid>.<ext>"). Direct-to-Blob in production, form post locally.
+// Upload customer artwork → returns its id ("<uuid>.<ext>"). Sent in 3MB parts (server: app/api/upload, PART in lib/storage).
 const TYPES: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "application/pdf": "pdf", "image/svg+xml": "svg" };
-let mode: Promise<boolean> | undefined;
+const PART = 3 * 1024 * 1024;
 
 export async function uploadArtwork(f: File, t: { fileType: string; fileSize: string }): Promise<string> {
   const ext = TYPES[f.type];
   if (!ext) throw new Error(t.fileType);
   if (f.size > 25 * 1024 * 1024) throw new Error(t.fileSize);
-  mode ??= fetch("/api/upload").then((r) => r.json()).then((r) => !!r.direct).catch(() => false);
-  if (await mode) {
-    const { upload } = await import("@vercel/blob/client");
-    const r = await upload(`uploads/${crypto.randomUUID()}.${ext}`, f, { access: "private", handleUploadUrl: "/api/upload", contentType: f.type });
-    return r.pathname.slice("uploads/".length);
+  const id = `${crypto.randomUUID()}.${ext}`;
+  for (let i = 0; i * PART < f.size; i++) {
+    const r = await fetch(`/api/upload?id=${id}&part=${i}`, { method: "POST", body: f.slice(i * PART, (i + 1) * PART) });
+    if (!r.ok) throw new Error((await r.json().catch(() => null))?.error ?? `HTTP ${r.status}`);
   }
-  const fd = new FormData(); fd.append("file", f);
-  const r = await (await fetch("/api/upload", { method: "POST", body: fd })).json();
-  if (r.error) throw new Error(r.error);
-  return r.id;
+  return id;
 }

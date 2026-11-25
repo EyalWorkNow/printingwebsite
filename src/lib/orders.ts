@@ -4,11 +4,10 @@ import { priceLine, totals, type Line, type LineInput, type Totals } from "./cat
 import { getCatalog, localized, readCatalog } from "./catalog-store";
 import { DEFAULT_LOCALE, isLocale, type Locale } from "@/i18n/config";
 import { DICTS } from "@/i18n/dicts";
-import { write } from "./storage";
 import { db } from "./db";
 
 // Orders live in the business database (lib/db.ts, table `orders`: searchable columns + the full order as jsonb).
-// Customer files stay in file storage (uploads/<id>).
+// Customer files are in lib/storage (uploads/<id>).
 
 export type Customer = { name: string; phone: string; email?: string; address?: string; city?: string; zip?: string; notes?: string; business?: string; businessId?: string };
 /** lang/currency: the site language the order came from and the market currency its prices are in (₪ when missing). */
@@ -17,18 +16,7 @@ export type Order = { id: string; createdAt: string; source: "site" | "chat"; it
 export const STATUSES = ["התקבלה", "בהכנה", "נשלחה", "בוטלה"] as const;
 export type Status = (typeof STATUSES)[number];
 
-export const UPLOAD_TYPES: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "application/pdf": "pdf", "image/svg+xml": "svg" };
 export const MAX_UPLOAD = 25 * 1024 * 1024;
-export const UPLOAD_KEY = /^uploads\/[0-9a-f-]{36}\.(png|jpg|webp|pdf|svg)$/;
-
-export async function saveUpload(file: File): Promise<string> {
-  const ext = UPLOAD_TYPES[file.type];
-  if (!ext) throw new Error("סוג קובץ לא נתמך (PDF/PNG/JPG/WEBP/SVG)");
-  if (file.size > MAX_UPLOAD) throw new Error("הקובץ גדול מ-25MB");
-  const id = `${randomUUID()}.${ext}`;
-  await write(`uploads/${id}`, Buffer.from(await file.arrayBuffer()), { contentType: file.type, create: true });
-  return id;
-}
 
 const s = (v: unknown, max = 200) => (typeof v === "string" ? v.trim().slice(0, max) : "");
 

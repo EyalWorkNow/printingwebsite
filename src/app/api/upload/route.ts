@@ -1,34 +1,22 @@
-import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
-import { MAX_UPLOAD, saveUpload, UPLOAD_KEY, UPLOAD_TYPES } from "@/lib/orders";
-import { BLOB } from "@/lib/storage";
-import { BLOB_TOKEN } from "@/lib/env";
+import { MAX_UPLOAD } from "@/lib/orders";
+import { PART, writePart } from "@/lib/storage";
 
-// Customer artwork. With Blob the browser uploads straight to storage (Vercel functions cap request bodies at 4.5MB);
-// this route only signs a token limited to one private uploads/<uuid>.<ext> key, allowed types and 25MB.
-// Without Blob (local dev) the file is posted here as form data.
-export const GET = () => Response.json({ direct: BLOB });
+// Customer artwork, sent by the browser in parts (lib/upload-client.ts): POST /api/upload?id=<uuid>.<ext>&part=<n>, raw body.
+// Each part is ≤ PART bytes (Vercel caps function request bodies at 4.5MB). Parts are insert-only, so an upload can't be overwritten.
+const ID = /^[0-9a-f-]{36}\.(png|jpg|webp|pdf|svg)$/;
+const TYPES: Record<string, string> = { png: "image/png", jpg: "image/jpeg", webp: "image/webp", pdf: "application/pdf", svg: "image/svg+xml" };
 
 export async function POST(req: Request) {
-  if (req.headers.get("content-type")?.includes("application/json")) {
-    if (!BLOB) return Response.json({ error: "direct upload disabled" }, { status: 400 });
-    try {
-      return Response.json(await handleUpload({
-        request: req, token: BLOB_TOKEN,
-        body: (await req.json()) as HandleUploadBody,
-        onBeforeGenerateToken: async (pathname) => {
-          if (!UPLOAD_KEY.test(pathname)) throw new Error("bad path");
-          return { allowedContentTypes: Object.keys(UPLOAD_TYPES), maximumSizeInBytes: MAX_UPLOAD, addRandomSuffix: false, allowOverwrite: false };
-        },
-      }));
-    } catch (e) {
-      return Response.json({ error: (e as Error).message }, { status: 400 });
-    }
-  }
-  const file = (await req.formData()).get("file");
-  if (!(file instanceof File)) return Response.json({ error: "לא נבחר קובץ" }, { status: 400 });
+  const q = new URL(req.url).searchParams;
+  const id = q.get("id") ?? "", part = Number(q.get("part"));
+  const m = ID.exec(id);
+  if (!m || !Number.isInteger(part) || part < 0 || part >= Math.ceil(MAX_UPLOAD / PART)) return Response.json({ error: "bad upload" }, { status: 400 });
+  const body = Buffer.from(await req.arrayBuffer());
+  if (!body.length || body.length > PART) return Response.json({ error: "bad part size" }, { status: 400 });
   try {
-    return Response.json({ id: await saveUpload(file) });
-  } catch (e) {
-    return Response.json({ error: (e as Error).message }, { status: 400 });
+    await writePart(`uploads/${id}`, part, body, TYPES[m[1]]);
+    return Response.json({ id });
+  } catch {
+    return Response.json({ error: "upload failed" }, { status: 409 });
   }
 }

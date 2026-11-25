@@ -12,7 +12,7 @@ type Result = { ok: true; id?: string } | { ok: false; errors: string[] };
 
 // actions are reachable outside the proxy matcher — re-verify auth in every one
 async function guard() {
-  if (!isAdmin((await headers()).get("authorization"))) throw new Error("unauthorized");
+  if (!await isAdmin((await headers()).get("authorization"))) throw new Error("unauthorized");
   return (await adminI18n()).t.errors;
 }
 

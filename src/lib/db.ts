@@ -2,7 +2,7 @@ import postgres from "postgres";
 import { DB_URL } from "./env";
 
 // The business database (Postgres — Neon via Vercel Storage in production, any Postgres locally).
-// Orders + every saved version of the catalog live here; customer files/photos stay in file storage (Blob / data/).
+// Orders, every saved version of the catalog, customer files/product photos (table files, lib/storage) and the admin login live here.
 // Vercel's Neon integration sets DATABASE_URL (or POSTGRES_URL); the schema is created on first use.
 // Query params are dropped (Supabase adds e.g. supa=…, which Postgres would reject as a setting); SSL is set below.
 const URL_ = DB_URL && (() => { try { const u = new URL(DB_URL); u.search = ""; return u.toString(); } catch { return DB_URL; } })();
@@ -28,6 +28,18 @@ create table if not exists catalog_versions (
   id bigserial primary key,
   saved_at timestamptz not null default now(),
   data jsonb not null
+);
+create table if not exists files (
+  key text not null,
+  part int not null,
+  content_type text,
+  data bytea not null,
+  created_at timestamptz not null default now(),
+  primary key (key, part)
+);
+create table if not exists settings (
+  key text primary key,
+  value jsonb not null
 );`;
 
 type Sql = ReturnType<typeof postgres>;

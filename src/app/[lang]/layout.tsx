@@ -1,3 +1,4 @@
+import { SITE_URL } from "@/lib/env";
 import type { Metadata } from "next";
 import { Heebo } from "next/font/google";
 import "../globals.css";
@@ -14,7 +15,7 @@ export const generateStaticParams = () => LOCALES.map((lang) => ({ lang }));
 export async function generateMetadata(): Promise<Metadata> {
   const { lang, d } = await getI18n();
   return {
-    metadataBase: new URL(process.env.SITE_URL ?? "http://localhost:3007"),
+    metadataBase: new URL(SITE_URL),
     title: d.meta.title,
     description: d.meta.description,
     openGraph: { type: "website", locale: LOCALE_META[lang].og, siteName: d.meta.brand, images: [{ url: "/img/set-flatlay.webp", width: 1200, height: 1200 }] },
