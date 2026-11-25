@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Heebo } from "next/font/google";
 import "./globals.css";
-import { THEME_SCRIPT } from "@/components/theme-toggle";
+import { THEME_SCRIPT, A11Y_SCRIPT } from "@/lib/head-scripts";
 
 const heebo = Heebo({ variable: "--font-sans", subsets: ["hebrew", "latin"] });
 
@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="he" dir="rtl" className={`${heebo.variable} h-full antialiased`} suppressHydrationWarning>
-      <head><script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} /></head>
+      <head><script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT + A11Y_SCRIPT }} /></head>
       <body className="min-h-full bg-background text-foreground">{children}</body>
     </html>
   );

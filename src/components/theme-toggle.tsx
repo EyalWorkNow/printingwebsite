@@ -33,5 +33,3 @@ export function ThemeToggle({ className = "" }: { className?: string }) {
   );
 }
 
-/** Runs before paint (inlined in <head>). */
-export const THEME_SCRIPT = `try{var t=localStorage.getItem("${KEY}");document.documentElement.classList.toggle("dark",t?t==="dark":matchMedia("(prefers-color-scheme: dark)").matches)}catch(e){document.documentElement.classList.add("dark")}`;

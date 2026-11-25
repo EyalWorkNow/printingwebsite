@@ -5,6 +5,7 @@ import { CatalogProvider } from "@/components/catalog-provider";
 import { CartButton } from "@/components/cart-button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Chat } from "@/components/chat";
+import { A11yMenu } from "@/components/a11y-menu";
 
 const INFO = [["/about", "אודות"], ["/faq", "שאלות נפוצות"], ["/contact", "צור קשר"], ["/products", "כל המוצרים"]];
 const LEGAL = [["/terms", "תקנון"], ["/privacy", "פרטיות"], ["/cancellation", "ביטולים והחזרות"], ["/accessibility", "הצהרת נגישות"]];
@@ -49,6 +50,7 @@ export default async function ShopLayout({ children }: LayoutProps<"/">) {
         </nav>
       </footer>
       <Chat />
+      <A11yMenu />
     </CatalogProvider>
   );
 }
