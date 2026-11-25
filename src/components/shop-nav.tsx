@@ -10,6 +10,12 @@ import { useTheme } from "./theme-toggle";
 import { useMe } from "@/lib/account-client";
 import { useCart } from "@/lib/cart";
 
+/** Current path as the visitor sees it. Hebrew pages are served from /he/… internally (proxy rewrite) and the
+ *  prerendered page can report that path — strip it so "/he/c/apparel" matches the "/c/apparel" links. */
+function useSitePath() {
+  return usePathname().replace(/^\/he(?=\/|$)/, "") || "/";
+}
+
 /** Item picked by a click (the drop moves before the next page loads). Forgotten as soon as the URL changes, so going
  *  Back to a page never shows an old pick as current. */
 function usePicked(path: string) {
@@ -27,7 +33,7 @@ const ICONS: Record<string, [React.ReactNode, NimbusFx]> = {
 export function ShopNav() {
   const cat = useCatalog();
   const { d, href } = useI18n();
-  const path = usePathname();
+  const path = useSitePath();
   const items: LiquidNavItem[] = [
     { label: d.nav.allProducts, href: href("/products"), icon: <LayoutGrid />, fx: "pop" },
     ...cat.categories.map((c) => ({ label: c.name, href: href(`/c/${c.id}`), icon: ICONS[c.id]?.[0] ?? <Tag />, fx: ICONS[c.id]?.[1] ?? "pop" })),
@@ -44,7 +50,7 @@ export function ShopNav() {
 /** Small icons-only pill next to the categories: theme, account, cart (same liquid look). */
 export function ShopActions() {
   const { d, href, f } = useI18n();
-  const path = usePathname();
+  const path = useSitePath();
   const [dark, toggle] = useTheme();
   const me = useMe();
   const n = useCart().length;
