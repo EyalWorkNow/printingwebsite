@@ -5,11 +5,11 @@ import Image from "next/image";
 import { motion, useReducedMotion } from "motion/react";
 import { ArrowLeft, ArrowRight, MessageCircle } from "lucide-react";
 
-// Home hero: tagline pill, word-by-word title, text, CTAs, and an endless strip of product cards.
+// Home hero: word-by-word title, text, CTAs, and an endless strip of product cards.
 // Hover/focus a card → product name, lowest unit price and a details link; the strip pauses while the pointer is on it.
 export type HeroItem = { id: string; name: string; image: string; price: string; href: string };
 type Props = {
-  tagline: string; title1: string; title2: string; text: string; cta: string; ctaHref: string; chat: string;
+  title1: string; title2: string; text: string; cta: string; ctaHref: string; chat: string;
   fromLabel: string; perUnit: string; details: string; items: HeroItem[]; dir: "rtl" | "ltr";
 };
 
@@ -20,11 +20,8 @@ export function HeroMarquee(p: Props) {
   const words = (s: string) => s.split(" ").map((w, i) => <motion.span key={i} variants={FADE} className="inline-block">{w}&nbsp;</motion.span>);
   return (
     <section className="relative flex flex-col items-center pt-6 text-center">
-      <motion.div initial="hidden" animate="show" variants={FADE} className="mb-5 inline-block rounded-full border bg-card/50 px-4 py-1.5 text-sm font-medium text-muted-foreground backdrop-blur-sm">
-        {p.tagline}
-      </motion.div>
       <motion.h1 initial="hidden" animate="show" variants={{ hidden: {}, show: { transition: { staggerChildren: 0.08 } } }}
-        className="text-4xl leading-[1.1] font-bold tracking-tight text-balance md:text-7xl">
+        className="text-4xl leading-[1.1] font-extrabold tracking-tight text-balance md:text-7xl">
         {words(p.title1)}<br />
         <span className="bg-gradient-to-l from-[#b23d8a] via-[#9a6200] to-[#3f7020] bg-clip-text text-transparent dark:from-[#dd7bbb] dark:via-[#d79f1e] dark:to-[#5a922c]">{words(p.title2)}</span>
       </motion.h1>

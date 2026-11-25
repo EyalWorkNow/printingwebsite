@@ -23,7 +23,7 @@ export default async function Home() {
 
   return (
     <div className="space-y-24">
-      <HeroMarquee tagline={d.footer.tagline} title1={h.heroTitle1} title2={h.heroTitle2} text={h.heroText} cta={h.ctaProducts} ctaHref={href("/products")} chat={h.ctaChat}
+      <HeroMarquee title1={h.heroTitle1} title2={h.heroTitle2} text={h.heroText} cta={h.ctaProducts} ctaHref={href("/products")} chat={h.ctaChat}
         fromLabel={d.product.cardFrom} perUnit={`${d.product.perUnit} ${d.vat.short}`} details={h.heroDetails} dir={dir}
         items={[...popular, ...products.filter((p) => !popular.includes(p))].flatMap((p) => p.image ? [{ id: p.id, name: p.name, image: p.image, price: m(fromPrice(cat, p)), href: href(`/p/${p.id}`) }] : [])} />
 
