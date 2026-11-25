@@ -13,7 +13,8 @@ import * as React from "react";
 import Link from "next/link";
 
 export type NimbusFx = "plane" | "drop" | "spin" | "glow" | "wave" | "pop" | "none";
-export type LiquidNavItem = { label: string; href: string; icon?: React.ReactNode; fx?: NimbusFx };
+/** href → link; otherwise a button running onClick. badge = small count on the icon (e.g. cart items). */
+export type LiquidNavItem = { label: string; href?: string; onClick?: () => void; icon?: React.ReactNode; fx?: NimbusFx; badge?: number };
 type RGB = [number, number, number];
 type Props = {
   items: LiquidNavItem[];
@@ -23,6 +24,8 @@ type Props = {
   /** water colour (0–1 RGB) on light and dark backgrounds */
   accent?: { light: RGB; dark: RGB };
   label: string;
+  /** icons only at every width (the label stays for screen readers and as a tooltip) */
+  compact?: boolean;
   className?: string;
 };
 
@@ -37,7 +40,6 @@ const STYLES = `
 .nimbus-glass{position:absolute;inset:0;border-radius:inherit;z-index:-2;overflow:hidden;background:var(--n-tint);
   -webkit-backdrop-filter:blur(10px) saturate(1.2);backdrop-filter:blur(10px) saturate(1.2);
   box-shadow:inset 0 1px 1px var(--n-rim),inset 0 0 0 1px color-mix(in oklab,var(--foreground) 10%,transparent),0 10px 28px -14px rgb(var(--n-acc) / .55),0 2px 6px rgba(0,0,0,.06)}
-.nimbus-nav[data-refract="on"] .nimbus-glass{-webkit-backdrop-filter:url(#nimbus-refract) blur(2px) saturate(1.2);backdrop-filter:url(#nimbus-refract) blur(2px) saturate(1.2)}
 .nimbus-water{position:absolute;left:${-PAD}px;top:${-PAD}px;z-index:-1;pointer-events:none}
 .nimbus-nav[data-gl="off"] .nimbus-water{display:none}
 .nimbus-drop{display:none;position:absolute;top:5px;bottom:5px;left:0;border-radius:999px;z-index:-1;pointer-events:none;will-change:transform,width;
@@ -70,6 +72,9 @@ const STYLES = `
 .nv-ico[data-fx="wave"] svg{animation:nvWave .9s ease-in-out both;transform-origin:50% 92%}
 @keyframes nvWave{0%{transform:none}20%{transform:rotate(-15deg)}40%{transform:rotate(12deg)}60%{transform:rotate(-8deg)}80%{transform:rotate(4deg)}100%{transform:translateY(-1px) scale(1.08)}}
 @media (max-width:1023px){.nimbus-item{padding:0 12px}.nimbus-label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}}
+.nimbus-nav[data-compact] .nimbus-item{padding:0 11px}
+.nimbus-nav[data-compact] .nimbus-label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.nv-badge{position:absolute;top:-9px;inset-inline-end:-13px;min-width:16px;height:16px;padding:0 4px;box-shadow:0 0 0 2px var(--background);border-radius:999px;background:var(--n-fg);color:var(--background);font-size:10px;font-weight:600;line-height:16px;text-align:center}
 @media (prefers-reduced-motion:reduce){.nv-ico svg,.nv-ico::before,.nv-ico::after{animation:none!important;transition:none}}
 `;
 
@@ -156,7 +161,8 @@ const subscribeTheme = (cb: () => void) => { const mo = new MutationObserver(cb)
 const noSub = () => () => {};
 const supportsRefraction = () => /Chrome\/|Chromium\/|Edg\//.test(navigator.userAgent) && !!CSS.supports?.("backdrop-filter", "url(#a)");
 
-export function LiquidNav({ items, active, onPick, accent = BRAND, label, className }: Props) {
+export function LiquidNav({ items, active, onPick, accent = BRAND, label, compact, className }: Props) {
+  const filterId = `nimbus-refract-${React.useId().replace(/:/g, "")}`;
   const navRef = React.useRef<HTMLElement>(null);
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
   const dropRef = React.useRef<HTMLSpanElement>(null);
@@ -357,28 +363,35 @@ export function LiquidNav({ items, active, onPick, accent = BRAND, label, classN
   const acc = (dark ? accent.dark : accent.light).map((v) => Math.round(v * 255)).join(" ");
 
   return (
-    <nav ref={navRef} aria-label={label} className={["nimbus-nav", className].filter(Boolean).join(" ")} data-refract={refract ? "on" : "off"} data-none={active < 0}
+    <nav ref={navRef} aria-label={label} className={["nimbus-nav", className].filter(Boolean).join(" ")} data-compact={compact || undefined} data-none={active < 0}
       style={{ "--n-acc": acc } as React.CSSProperties}
       onKeyDown={onKeyDown} onPointerMove={onMove} onPointerLeave={() => { st.current.mouse.on = false; loop(); }}
       onPointerDown={(e) => { const p = local(e.clientX, e.clientY); ripple(p.x, p.y, 0.8); }}>
       <style dangerouslySetInnerHTML={{ __html: STYLES }} />
       <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden="true">
-        <filter id="nimbus-refract" x="0" y="0" width="100%" height="100%" colorInterpolationFilters="sRGB">
+        <filter id={filterId} x="0" y="0" width="100%" height="100%" colorInterpolationFilters="sRGB">
           <feTurbulence type="fractalNoise" baseFrequency="0.006 0.02" numOctaves="2" seed="7" result="noise" />
           <feGaussianBlur in="noise" stdDeviation="2" result="soft" />
           <feDisplacementMap in="SourceGraphic" in2="soft" scale="60" xChannelSelector="R" yChannelSelector="G" />
         </filter>
       </svg>
-      <span className="nimbus-glass" aria-hidden="true" />
+      <span className="nimbus-glass" aria-hidden="true" style={refract ? { backdropFilter: `url(#${filterId}) blur(2px) saturate(1.2)`, WebkitBackdropFilter: `url(#${filterId}) blur(2px) saturate(1.2)` } : undefined} />
       <canvas className="nimbus-water" ref={canvasRef} aria-hidden="true" />
       <span className="nimbus-drop" ref={dropRef} aria-hidden="true" />
       {items.map((it, i) => {
         const kind = it.fx ?? "pop", playing = fx.i === i && kind !== "none";
+        const props = {
+          ref: (el: HTMLElement | null) => { itemRefs.current[i] = el; },
+          className: "nimbus-item", title: compact ? it.label : undefined,
+          "aria-current": i === active ? ("page" as const) : undefined,
+          onClick: () => { select(i); it.onClick?.(); },
+        };
+        const content = <>
+          {it.icon && <span className="nv-ico" key={playing ? fx.n : 0} data-fx={playing ? kind : undefined} ref={(el) => { iconRefs.current[i] = el; }}>{it.icon}{!!it.badge && <span className="nv-badge" aria-hidden="true">{it.badge}</span>}</span>}
+          <span className="nimbus-label">{it.label}</span>
+        </>;
         return (
-          <Link key={it.href} href={it.href} ref={(el) => { itemRefs.current[i] = el; }} className="nimbus-item" aria-current={i === active ? "page" : undefined} onClick={() => select(i)}>
-            {it.icon && <span className="nv-ico" key={playing ? fx.n : 0} data-fx={playing ? kind : undefined} ref={(el) => { iconRefs.current[i] = el; }}>{it.icon}</span>}
-            <span className="nimbus-label">{it.label}</span>
-          </Link>
+          it.href ? <Link key={i} href={it.href} {...props}>{content}</Link> : <button key={i} type="button" {...props}>{content}</button>
         );
       })}
     </nav>

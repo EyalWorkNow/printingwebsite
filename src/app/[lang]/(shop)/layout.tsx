@@ -2,10 +2,7 @@ import Link from "next/link";
 import { getLocalizedCatalog } from "@/lib/catalog-store";
 import { BUSINESS, legalName } from "@/lib/content";
 import { CatalogProvider } from "@/components/catalog-provider";
-import { CartButton } from "@/components/cart-button";
-import { AccountButton } from "@/components/account-button";
-import { ShopNav } from "@/components/shop-nav";
-import { ThemeToggle } from "@/components/theme-toggle";
+import { ShopNav, ShopActions } from "@/components/shop-nav";
 import { Chat } from "@/components/chat";
 import { A11yMenu } from "@/components/a11y-menu";
 import { LanguagePicker } from "@/components/language-picker";
@@ -24,11 +21,9 @@ export default async function ShopLayout({ children }: LayoutProps<"/[lang]">) {
         <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:start-3 focus:z-50 focus:rounded-lg focus:bg-foreground focus:px-4 focus:py-2 focus:text-background">{d.nav.skip}</a>
         <header className="sticky top-0 z-40 border-b bg-background/85 backdrop-blur">
           <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2.5 md:flex-nowrap md:gap-4 md:py-2">
-            <Link href={href("/")} className="text-xl font-bold tracking-tight">{brand}<span className="text-muted-foreground">.</span></Link>
+            <Link href={href("/")} className="me-auto text-xl font-bold tracking-tight md:me-0">{brand}<span className="text-muted-foreground">.</span></Link>
             <div className="order-last flex w-full justify-center md:order-none md:w-auto md:flex-1"><ShopNav /></div>
-            <ThemeToggle className="ms-auto md:ms-0" t={d.theme} />
-            <AccountButton />
-            <CartButton />
+            <ShopActions />
           </div>
         </header>
         <main id="main" className="mx-auto max-w-6xl px-4 py-8">{children}</main>

@@ -2,10 +2,13 @@
 
 import { useState } from "react";
 import { usePathname } from "next/navigation";
-import { LayoutGrid, Printer, Sticker, Shirt, Gift, Tag } from "lucide-react";
+import { LayoutGrid, Printer, Sticker, Shirt, Gift, Tag, Sun, Moon, CircleUser, ShoppingCart } from "lucide-react";
 import { LiquidNav, type LiquidNavItem, type NimbusFx } from "./liquid-nav";
 import { useCatalog } from "./catalog-provider";
 import { useI18n } from "@/i18n/client";
+import { useTheme } from "./theme-toggle";
+import { useMe } from "@/lib/account-client";
+import { useCart } from "@/lib/cart";
 
 // Header category nav (liquid pill). Categories come from the live catalog; new ones get a tag icon.
 const ICONS: Record<string, [React.ReactNode, NimbusFx]> = {
@@ -28,4 +31,22 @@ export function ShopNav() {
   const [picked, setPicked] = useState<{ i: number; path: string }>();
   const active = picked?.path === path ? picked.i : fromPath;
   return <LiquidNav items={items} active={active} onPick={(i) => setPicked({ i, path })} label={d.nav.categories} />;
+}
+
+/** Small icons-only pill next to the categories: theme, account, cart (same liquid look). */
+export function ShopActions() {
+  const { d, href, f } = useI18n();
+  const path = usePathname();
+  const [dark, toggle] = useTheme();
+  const me = useMe();
+  const n = useCart().length;
+  const items: LiquidNavItem[] = [
+    { label: dark ? d.theme.toLight : d.theme.toDark, onClick: toggle, icon: dark ? <Sun /> : <Moon />, fx: "spin" },
+    { label: me ? `${d.nav.account} · ${me.name}` : d.nav.login, href: href("/account"), icon: <CircleUser />, fx: "wave" },
+    { label: f(d.nav.cartAria, { n }), href: href("/cart"), icon: <ShoppingCart />, fx: "drop", badge: n },
+  ];
+  const fromPath = path === href("/account") ? 1 : path === href("/cart") || path === href("/checkout") ? 2 : -1;
+  const [picked, setPicked] = useState<{ i: number; path: string }>();
+  const active = picked?.path === path ? picked.i : fromPath;
+  return <LiquidNav compact items={items} active={active} onPick={(i) => { if (items[i].href) setPicked({ i, path }); }} label={d.nav.account} />;
 }
