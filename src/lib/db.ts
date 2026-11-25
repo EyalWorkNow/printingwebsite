@@ -43,7 +43,7 @@ create table if not exists settings (
 );`;
 
 type Sql = ReturnType<typeof postgres>;
-const g = globalThis as unknown as { __dfusSql?: Sql; __dfusReady?: Promise<unknown> };
+const g = globalThis as unknown as { __dfusSql?: Sql; __dfusReady?: Promise<unknown>; __dfusSchema?: string };
 
 /** Connected client with the schema in place. Throws a clear error when no database is configured. */
 export async function db(): Promise<Sql> {
@@ -54,6 +54,7 @@ export async function db(): Promise<Sql> {
   // the advisory lock serializes schema creation across processes (parallel build workers, cold starts):
   // concurrent "create table if not exists" otherwise races on pg_type
   const sql = g.__dfusSql;
+  if (g.__dfusSchema !== SCHEMA) { g.__dfusSchema = SCHEMA; g.__dfusReady = undefined; } // schema edited during dev (hot reload): run it again
   g.__dfusReady ??= sql.begin(async (tx) => { await tx`select pg_advisory_xact_lock(724390125)`; await tx.unsafe(SCHEMA); })
     .catch((e) => { g.__dfusReady = undefined; throw e; });
   await g.__dfusReady;
