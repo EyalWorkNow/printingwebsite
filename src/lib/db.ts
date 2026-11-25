@@ -72,7 +72,11 @@ export async function db(): Promise<Sql> {
   if (!URL_) throw new Error("DATABASE_URL is not set — connect a Postgres database (Vercel → Storage)");
   // one pool per server instance (and across dev hot reloads)
   // prepare: false — transaction-mode poolers (Supabase :6543, PgBouncer) don't support prepared statements
-  g.__dfusSql ??= postgres(URL_, { max: 5, idle_timeout: 20, prepare: false, ssl: /localhost|127\.0\.0\.1/.test(URL_) ? false : "require", onnotice: () => {} });
+  // during `next build` every prerender worker opens its own pool: 1 connection each (7 workers × 5 could exhaust the pooler),
+  // and a 10s connect timeout so a stuck connection fails fast (the shop falls back to the built-in catalog) instead of
+  // hanging a page until the build times out
+  const building = process.env.NEXT_PHASE === "phase-production-build";
+  g.__dfusSql ??= postgres(URL_, { max: building ? 1 : 5, connect_timeout: 10, idle_timeout: 20, prepare: false, ssl: /localhost|127\.0\.0\.1/.test(URL_) ? false : "require", onnotice: () => {} });
   // the advisory lock serializes schema creation across processes (parallel build workers, cold starts):
   // concurrent "create table if not exists" otherwise races on pg_type
   const sql = g.__dfusSql;
