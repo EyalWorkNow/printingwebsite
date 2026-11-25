@@ -14,7 +14,7 @@ import Link from "next/link";
 
 export type NimbusFx = "plane" | "drop" | "spin" | "glow" | "wave" | "pop" | "none";
 /** href → link; otherwise a button running onClick. badge = small count on the icon (e.g. cart items). */
-export type LiquidNavItem = { label: string; href?: string; onClick?: () => void; icon?: React.ReactNode; fx?: NimbusFx; badge?: number };
+export type LiquidNavItem = { label: string; /** accessible name when it should say more than the label */ aria?: string; href?: string; onClick?: () => void; icon?: React.ReactNode; fx?: NimbusFx; badge?: number };
 type RGB = [number, number, number];
 type Props = {
   items: LiquidNavItem[];
@@ -75,7 +75,10 @@ const STYLES = `
 .nimbus-nav[data-compact] .nimbus-item{padding:0 11px}
 .nimbus-nav[data-compact] .nimbus-label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .nv-badge{position:absolute;top:-9px;inset-inline-end:-13px;min-width:16px;height:16px;padding:0 4px;box-shadow:0 0 0 2px var(--background);border-radius:999px;background:var(--n-fg);color:var(--background);font-size:10px;font-weight:600;line-height:16px;text-align:center}
-@media (max-width:767px){.nv-dock .nimbus-nav{padding:5.6px}.nv-dock .nimbus-item{height:42.5px;padding:0 13.5px}.nv-dock .nv-ico svg{width:20px;height:20px}} /* bottom dock: 12% larger */
+@media (max-width:767px){.nv-dock .nimbus-nav{padding:6px}.nv-dock .nimbus-item{height:47px;padding:0 15px;font-size:15px}.nv-dock .nv-ico svg{width:22px;height:22px}} /* bottom dock: ×1.12×1.1 */
+/* icon-only modes: the selected item opens up and shows its name next to the icon */
+.nimbus-nav .nimbus-item[aria-current="page"] .nimbus-label{position:static;width:auto;height:auto;max-width:8.5em;overflow:hidden;text-overflow:ellipsis;clip:auto;animation:nvLabel .4s ease both}
+@keyframes nvLabel{from{opacity:0}to{opacity:1}}
 @media (prefers-reduced-motion:reduce){.nv-ico svg,.nv-ico::before,.nv-ico::after{animation:none!important;transition:none}}
 `;
 
@@ -320,14 +323,15 @@ export function LiquidNav({ items, active, onPick, accent = BRAND, label, compac
     return () => { cv?.removeEventListener("webglcontextlost", lost); io.disconnect(); document.removeEventListener("visibilitychange", vis); cancelAnimationFrame(s.raf); s.raf = 0; };
   }, [loop]);
 
-  React.useLayoutEffect(() => { measure(); }, [measure, items.length]);
+  // the ResizeObserver below fires between layout and passive effects, so the ref must be current by then —
+  // otherwise it re-measures with the previous page's active item
   const measureRef = React.useRef(measure);
-  React.useEffect(() => { measureRef.current = measure; }, [measure]);
+  React.useLayoutEffect(() => { measureRef.current = measure; measure(); }, [measure, items.length]);
   React.useEffect(() => {
     let lastW = -1;
     const ro = new ResizeObserver(() => {
       const w = navRef.current?.offsetWidth ?? 0;
-      if (w !== lastW) { lastW = w; st.current.ready = false; measureRef.current(); }
+      if (w !== lastW) { lastW = w; measureRef.current(); } // the drop flows to the new spot (the pill resizes when a label opens)
     });
     if (navRef.current) ro.observe(navRef.current);
     return () => ro.disconnect();
@@ -383,7 +387,7 @@ export function LiquidNav({ items, active, onPick, accent = BRAND, label, compac
         const kind = it.fx ?? "pop", playing = fx.i === i && kind !== "none";
         const props = {
           ref: (el: HTMLElement | null) => { itemRefs.current[i] = el; },
-          className: "nimbus-item", title: compact ? it.label : undefined,
+          className: "nimbus-item", title: compact ? it.aria ?? it.label : undefined, "aria-label": it.aria,
           "aria-current": i === active ? ("page" as const) : undefined,
           onClick: () => { select(i); it.onClick?.(); },
         };

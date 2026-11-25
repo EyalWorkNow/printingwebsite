@@ -176,6 +176,6 @@ html:not(.dark) .glow {
 
 /* mobile: the category nav is docked at the bottom (layout .nv-dock) — floating buttons sit above it, the page ends above it */
 @media (max-width: 767px) {
-  html:has(.nv-dock) { --dock-h: 4.5rem; }
+  html:has(.nv-dock) { --dock-h: calc(3.75rem + 4svh); }
   html:has(.nv-dock) body { padding-bottom: calc(var(--dock-h) + env(safe-area-inset-bottom)); }
 }

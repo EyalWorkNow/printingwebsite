@@ -23,7 +23,7 @@ export default async function ShopLayout({ children }: LayoutProps<"/[lang]">) {
           <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2.5 *:pointer-events-auto md:flex-nowrap md:gap-4 md:py-2">
             <Link href={href("/")} className="me-auto rounded-full border bg-background/55 px-4 py-2 text-xl font-bold tracking-tight shadow-sm backdrop-blur-md md:me-0">{brand}<span className="text-muted-foreground">.</span></Link>
             {/* mobile: docked at the bottom of the screen (above the product page's price bar via --fab-offset); desktop: in the header */}
-            <div className="nv-dock pointer-events-none! flex justify-center max-md:fixed max-md:inset-x-0 max-md:bottom-[calc(0.75rem+env(safe-area-inset-bottom)+var(--fab-offset,0rem))] max-md:z-40 md:flex-1"><ShopNav /></div>
+            <div className="nv-dock pointer-events-none! flex justify-center max-md:fixed max-md:inset-x-0 max-md:bottom-[calc(4svh+env(safe-area-inset-bottom)+var(--fab-offset,0rem))] max-md:z-40 md:flex-1"><ShopNav /></div>
             <ShopActions />
           </div>
         </header>

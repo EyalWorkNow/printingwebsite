@@ -10,6 +10,15 @@ import { useTheme } from "./theme-toggle";
 import { useMe } from "@/lib/account-client";
 import { useCart } from "@/lib/cart";
 
+/** Item picked by a click (the drop moves before the next page loads). Forgotten as soon as the URL changes, so going
+ *  Back to a page never shows an old pick as current. */
+function usePicked(path: string) {
+  const [picked, setPicked] = useState<number>();
+  const [at, setAt] = useState(path);
+  if (at !== path) { setAt(path); setPicked(undefined); } // reset during render (React's "adjust state on prop change")
+  return [at === path ? picked : undefined, setPicked] as const;
+}
+
 // Header category nav (liquid pill). Categories come from the live catalog; new ones get a tag icon.
 const ICONS: Record<string, [React.ReactNode, NimbusFx]> = {
   print: [<Printer key="i" />, "drop"], signs: [<Sticker key="i" />, "spin"], apparel: [<Shirt key="i" />, "wave"], promo: [<Gift key="i" />, "glow"],
@@ -28,9 +37,8 @@ export function ShopNav() {
   const catOf = product && cat.products.find((p) => p.id === product)?.category;
   const fromPath = items.findIndex((it) => it.href === path || (catOf && it.href === href(`/c/${catOf}`)));
   // the drop moves on click, before the next page has loaded
-  const [picked, setPicked] = useState<{ i: number; path: string }>();
-  const active = picked?.path === path ? picked.i : fromPath;
-  return <LiquidNav items={items} active={active} onPick={(i) => setPicked({ i, path })} label={d.nav.categories} />;
+  const [picked, setPicked] = usePicked(path);
+  return <LiquidNav items={items} active={picked ?? fromPath} onPick={setPicked} label={d.nav.categories} />;
 }
 
 /** Small icons-only pill next to the categories: theme, account, cart (same liquid look). */
@@ -42,11 +50,10 @@ export function ShopActions() {
   const n = useCart().length;
   const items: LiquidNavItem[] = [
     { label: dark ? d.theme.toLight : d.theme.toDark, onClick: toggle, icon: dark ? <Sun /> : <Moon />, fx: "spin" },
-    { label: me ? `${d.nav.account} · ${me.name}` : d.nav.login, href: href("/account"), icon: <CircleUser />, fx: "wave" },
-    { label: f(d.nav.cartAria, { n }), href: href("/cart"), icon: <ShoppingCart />, fx: "drop", badge: n },
+    { label: me ? me.name.split(" ")[0] : d.nav.login, aria: me ? `${d.nav.account} · ${me.name}` : d.nav.login, href: href("/account"), icon: <CircleUser />, fx: "wave" },
+    { label: d.nav.cart, aria: f(d.nav.cartAria, { n }), href: href("/cart"), icon: <ShoppingCart />, fx: "drop", badge: n },
   ];
   const fromPath = path === href("/account") ? 1 : path === href("/cart") || path === href("/checkout") ? 2 : -1;
-  const [picked, setPicked] = useState<{ i: number; path: string }>();
-  const active = picked?.path === path ? picked.i : fromPath;
-  return <LiquidNav compact items={items} active={active} onPick={(i) => { if (items[i].href) setPicked({ i, path }); }} label={d.nav.account} />;
+  const [picked, setPicked] = usePicked(path);
+  return <LiquidNav compact items={items} active={picked ?? fromPath} onPick={(i) => { if (items[i].href) setPicked(i); }} label={d.nav.account} />;
 }
