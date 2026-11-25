@@ -4,9 +4,9 @@ import { uploadArtwork } from "@/lib/upload-client";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Upload, Check, Loader2, ZoomIn, AlertTriangle, BadgeCheck, ChevronLeft, ChevronRight, ShoppingCart, FileText, Clock } from "lucide-react";
+import { Upload, Check, Loader2, AlertTriangle, BadgeCheck, ChevronLeft, ChevronRight, ShoppingCart, FileText, Clock } from "lucide-react";
 import {
-  findProduct, normalize, visibleValues, priceLine, withVat, tierAt, ils, mockupFor, tintFor, printCmFor, printDpi, dpiLevel,
+  findProduct, normalize, sidesOf, type Side, visibleValues, priceLine, withVat, tierAt, ils, mockupFor, tintFor, printDpi, dpiLevel,
   addBusinessDays, type ProductionId, type Line,
 } from "@/lib/catalog";
 import { cart, useToday } from "@/lib/cart";
@@ -16,6 +16,7 @@ import { PhotoMockup } from "./photo-mockup";
 import { PHOTO_MOCKUPS, clampPlacement, defaultPlacement, describePlacement, maxWidth, type Placement } from "@/lib/photo-mockups";
 import { GlowCard } from "./glow-card";
 
+type Art = { id?: string; name: string; preview?: string; thumb?: string; px?: [number, number]; aspect?: number; busy?: boolean; error?: string };
 const STEPS = ["מאפיינים", "כמות", "זמן ייצור", "גרפיקה"];
 const chip = (on: boolean) => `rounded-xl border px-3 py-2 text-sm text-right transition ${on ? "border-foreground bg-foreground/5 text-foreground" : "text-muted-foreground hover:border-foreground/40 hover:text-foreground"}`;
 const input = "w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none focus:border-foreground/50";
@@ -32,9 +33,8 @@ export function ProductWizard({ productId }: { productId: string }) {
   const [qty, setQty] = useState(p.qty.presets[Math.min(1, p.qty.presets.length - 1)]);
   const [split, setSplit] = useState<Record<string, number>>(() => (splitOpt ? { [(splitOpt.values.filter((v) => v.active !== false)[1] ?? splitOpt.values[0]).id]: p.qty.presets[0] } : {}));
   const [production, setProduction] = useState<ProductionId>(p.production.includes("standard") ? "standard" : p.production[0]);
-  const [art, setArt] = useState<{ id?: string; name: string; preview?: string; thumb?: string; px?: [number, number]; aspect?: number; busy?: boolean; error?: string }>();
-  const [zoom, setZoom] = useState(1);
-  const [fit, setFit] = useState(false);
+  const [arts, setArts] = useState<Record<string, Art>>({}); // one file per printed side
+  const [activeSide, setActiveSide] = useState<string>();
   const [added, setAdded] = useState(false);
   const [view, setView] = useState<"photo" | "mock">(p.image ? "photo" : "mock");
   // mobile: the price bar is pinned to the bottom edge — lift the floating chat button above it
@@ -47,25 +47,29 @@ export function ProductWizard({ productId }: { productId: string }) {
   const ok = typeof line !== "string";
   const quote = (patch: Partial<typeof input0>): Line | undefined => { try { return priceLine(cat, { ...input0, ...patch }); } catch { return undefined; } };
 
-  // real-photo mockup (pilot products): the customer sets the print size in cm, DPI follows that size
+  // printed sides (front/back, outside/inside…): each has its own file, placement in cm and DPI check
   const pm = PHOTO_MOCKUPS[p.id];
-  const zone = useMemo(() => pm?.zoneFor(sel, printCmFor(p, sel)), [pm, p, sel]);
-  const zoneId = zone && `${zone.label}|${zone.cm.join("x")}`;
-  const aspect = art?.aspect ?? 1;
-  const [placed, setPlaced] = useState<{ key: string; p: Placement }>();
-  const placeKey = `${art?.preview}|${zoneId}`;
-  const place = zone && art?.preview ? (placed?.key === placeKey ? placed.p : defaultPlacement(zone, aspect)) : undefined;
-  const setPlace = (np: Placement) => zone && setPlaced({ key: placeKey, p: clampPlacement(zone, aspect, np) });
+  const sides = useMemo(() => sidesOf(p, sel), [p, sel]);
+  const side = sides.find((x) => x.id === activeSide) ?? sides[0];
+  const [placed, setPlaced] = useState<Record<string, { key: string; p: Placement }>>({});
+  const sideInfo = (sd: Side) => {
+    const art = arts[sd.id], zone = pm?.zone(sd, sel), aspect = art?.aspect ?? 1;
+    const key = `${art?.preview}|${zone?.label}|${zone?.cm.join("x")}`;
+    const place = zone && art?.preview ? (placed[sd.id]?.key === key ? placed[sd.id].p : defaultPlacement(zone, aspect)) : undefined;
+    const cm: [number, number] | undefined = place ? [place.w, place.w * aspect] : sd.cm;
+    const dpi = art?.px && cm ? printDpi(cm, art.px[0], art.px[1]) : undefined;
+    return { art, zone, aspect, key, place, dpi, level: dpi ? dpiLevel(dpi) : undefined };
+  };
+  const cur = sideInfo(side);
+  const setPlace = (np: Placement) => cur.zone && setPlaced((m) => ({ ...m, [side.id]: { key: cur.key, p: clampPlacement(cur.zone!, cur.aspect, np) } }));
 
-  const cm: [number, number] | undefined = place ? [place.w, place.w * aspect] : printCmFor(p, sel);
-  const dpi = art?.px && cm && printDpi(cm, art.px[0], art.px[1]);
-  const level = dpi ? dpiLevel(dpi) : undefined;
-
-  async function onFile(f?: File) {
+  async function onFile(sd: Side, f?: File) {
     if (!f) return;
-    if (art?.preview) URL.revokeObjectURL(art.preview);
+    const old = arts[sd.id]?.preview;
+    if (old) URL.revokeObjectURL(old);
     const preview = f.type.startsWith("image/") ? URL.createObjectURL(f) : undefined;
-    setArt({ name: f.name, preview, busy: true }); setZoom(1); setFit(false); setView("mock");
+    const put = (a: Art) => setArts((m) => ({ ...m, [sd.id]: a }));
+    put({ name: f.name, preview, busy: true }); setActiveSide(sd.id); setView("mock");
     let px: [number, number] | undefined, thumb: string | undefined, aspect: number | undefined;
     if (preview) {
       const img = new window.Image();
@@ -81,14 +85,19 @@ export function ProductWizard({ productId }: { productId: string }) {
       } catch { /* tainted/unsupported — cart shows the mockup without art */ }
     }
     try {
-      setArt({ id: await uploadArtwork(f), name: f.name, preview, thumb, px, aspect });
-    } catch (e) { setArt({ name: f.name, preview, px, aspect, error: (e as Error).message }); }
+      put({ id: await uploadArtwork(f), name: f.name, preview, thumb, px, aspect });
+    } catch (e) { put({ name: f.name, preview, px, aspect, error: (e as Error).message }); }
   }
 
   function addToCart() {
     if (!ok) return;
-    const placement = zone && place ? describePlacement(zone, aspect, place) : art?.preview && (zoom !== 1 || fit) ? `מיקום: ${fit ? "התאמה מלאה" : "מילוי"}, זום ${Math.round(zoom * 100)}%` : undefined;
-    cart.add({ ...input0, quantity: line.quantity, artwork: art?.id, placement, thumb: art?.thumb, fileName: art?.id ? art.name : undefined });
+    const files = sides.map((sd) => {
+      const x = sideInfo(sd);
+      return { side: sd.id, artwork: x.art?.id, placement: x.zone && x.place ? describePlacement(x.zone, x.aspect, x.place) : undefined };
+    });
+    const first = sides.map((sd) => arts[sd.id]).find((a) => a?.id);
+    const names = sides.map((sd) => arts[sd.id]?.id && arts[sd.id]!.name).filter(Boolean);
+    cart.add({ ...input0, quantity: line.quantity, files, artwork: first?.id, placement: files[0]?.placement, thumb: first?.thumb, fileName: names.length ? names.join(" · ") : undefined });
     setAdded(true);
   }
 
@@ -110,34 +119,33 @@ export function ProductWizard({ productId }: { productId: string }) {
           {view === "photo" && p.image ? (
             <div className="relative aspect-square w-full max-w-md overflow-hidden rounded-xl"><Image src={p.image} alt={p.name} fill priority sizes="(min-width: 1024px) 40vw, 90vw" className="object-cover" /></div>
           ) : (
-            pm && zone ? <div className="w-full max-w-md"><PhotoMockup key={zoneId} zone={zone} tint={tintFor(p, sel)} art={art?.preview} aspect={aspect} place={place} onPlace={setPlace} /></div>
-            : <div className="aspect-square w-full max-w-md"><Mockup kind={mockupFor(p, sel)} tint={tintFor(p, sel)} src={art?.preview} zoom={zoom} fit={fit} /></div>
+            <div className="w-full max-w-md space-y-2">
+              {sides.length > 1 && (
+                <div className="flex flex-wrap justify-center gap-1 text-xs" role="tablist" aria-label="צד">
+                  {sides.map((sd) => <button key={sd.id} type="button" role="tab" aria-selected={sd.id === side.id} onClick={() => setActiveSide(sd.id)} className={`rounded-full border px-3 py-1 ${sd.id === side.id ? "border-foreground text-foreground" : "text-muted-foreground hover:text-foreground"}`}>{sd.label}{arts[sd.id]?.id ? " ✓" : ""}</button>)}
+                </div>
+              )}
+              {cur.zone ? <PhotoMockup key={side.id} zone={cur.zone} tint={tintFor(p, sel)} art={cur.art?.preview} aspect={cur.aspect} place={cur.place} onPlace={setPlace} />
+                : <div className="aspect-square w-full"><Mockup kind={mockupFor(p, sel)} tint={tintFor(p, sel)} src={cur.art?.preview} /></div>}
+            </div>
           )}
-          {view === "mock" && zone && place && (
+          {view === "mock" && cur.zone && cur.place && (() => { const zone = cur.zone, place = cur.place, aspect = cur.aspect, mw = maxWidth(zone, aspect); return (
             <div className="w-full max-w-md space-y-2 text-xs text-muted-foreground">
               <div className="flex items-center gap-3">
                 <span className="shrink-0">רוחב</span>
-                <input type="range" min={2} max={Math.floor(maxWidth(zone, aspect) * 10) / 10} step={0.1} value={place.w} onChange={(e) => setPlace({ ...place, w: Number(e.target.value), x: place.x + (place.w - Number(e.target.value)) / 2 })} aria-label="רוחב ההדפסה בס״מ" className="h-6 flex-1 accent-foreground" />
+                <input type="range" min={Math.min(1, mw)} max={Math.floor(mw * 10) / 10} step={0.1} value={place.w} onChange={(e) => setPlace({ ...place, w: Number(e.target.value), x: place.x + (place.w - Number(e.target.value)) / 2 })} aria-label="רוחב ההדפסה בס״מ" className="h-6 flex-1 accent-foreground" />
                 <span className="w-16 text-left tabular-nums" dir="ltr">{place.w.toFixed(1)} cm</span>
               </div>
               <div className="flex flex-wrap gap-2">
                 <button type="button" onClick={() => setPlace({ ...place, x: (zone.cm[0] - place.w) / 2 })} className="rounded-full border px-2.5 py-1 hover:text-foreground">מרכוז</button>
-                <button type="button" onClick={() => setPlaced({ key: placeKey, p: { w: maxWidth(zone, aspect), x: (zone.cm[0] - maxWidth(zone, aspect)) / 2, y: 0 } })} className="rounded-full border px-2.5 py-1 hover:text-foreground">הכי גדול</button>
-                <button type="button" onClick={() => setPlaced(undefined)} className="rounded-full border px-2.5 py-1 hover:text-foreground">איפוס</button>
+                <button type="button" onClick={() => setPlace({ w: mw, x: (zone.cm[0] - mw) / 2, y: 0 })} className="rounded-full border px-2.5 py-1 hover:text-foreground">הכי גדול</button>
+                <button type="button" onClick={() => setPlaced((m) => { const n = { ...m }; delete n[side.id]; return n; })} className="rounded-full border px-2.5 py-1 hover:text-foreground">איפוס</button>
               </div>
               <p className="font-medium text-foreground" role="status">{describePlacement(zone, aspect, place)}</p>
               <p>גוררים את הגרפיקה כדי להזיז, מושכים את הפינה לשינוי גודל.</p>
-            </div>
-          )}
-          {view === "mock" && !zone && art?.preview && (
-            <div className="flex w-full max-w-sm items-center gap-3 text-xs text-muted-foreground">
-              <ZoomIn className="h-4 w-4 shrink-0" />
-              <input type="range" min={0.5} max={2} step={0.05} value={zoom} onChange={(e) => setZoom(Number(e.target.value))} aria-label="זום על הגרפיקה" className="h-6 flex-1 accent-foreground" />
-              <span className="w-10 tabular-nums">{Math.round(zoom * 100)}%</span>
-              <button type="button" onClick={() => setFit(!fit)} className="rounded-full border px-2.5 py-1 hover:text-foreground">{fit ? "מילוי" : "התאמה"}</button>
-            </div>
-          )}
-          {art && !art.preview && <p className="flex items-center gap-2 text-xs text-muted-foreground"><FileText className="h-4 w-4" /> {art.name} — תצוגה מקדימה זמינה לתמונות בלבד</p>}
+            </div>); })()}
+          {view === "mock" && !cur.art && <p className="text-center text-xs text-muted-foreground">{sides.length > 1 ? `מעלים קובץ לכל צד בשלב ״גרפיקה״ — עכשיו מוצג: ${side.label}` : "מעלים קובץ בשלב ״גרפיקה״ ורואים אותו כאן על המוצר"}</p>}
+          {cur.art && !cur.art.preview && <p className="flex items-center gap-2 text-xs text-muted-foreground"><FileText className="h-4 w-4" /> {cur.art.name} — תצוגה מקדימה זמינה לתמונות בלבד</p>}
           <p className="text-center text-xs text-muted-foreground">{view === "photo" ? "תמונת דוגמה — הלוגו שלכם יודפס באותו מיקום." : "הדמיה להמחשה. ייתכנו הבדלי גוון קלים בין המסך להדפסה."}</p>
         </GlowCard>
       </div>
@@ -237,23 +245,27 @@ export function ProductWizard({ productId }: { productId: string }) {
           {step === 3 && (
             <div className="space-y-4">
               <h2 className="text-lg font-semibold">גרפיקה</h2>
-              <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-dashed p-5 text-sm text-foreground/80 hover:border-foreground/40">
-                {art?.busy ? <Loader2 className="h-5 w-5 animate-spin" /> : art?.id ? <Check className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /> : <Upload className="h-5 w-5" />}
-                <span>{art ? `${art.name}${art.busy ? " — מעלה…" : art.id ? " — הועלה" : ""}` : "העלאת קובץ מוכן — PDF, PNG, JPG, SVG עד 25MB"}</span>
-                <input type="file" className="sr-only" accept="application/pdf,image/png,image/jpeg,image/webp,image/svg+xml" onChange={(e) => onFile(e.target.files?.[0])} />
-              </label>
-              {art?.error && <p className="text-sm text-red-600 dark:text-red-400" role="alert">{art.error}</p>}
-              {level && (
-                <p className={`flex items-center gap-2 text-xs ${level === "low" ? "text-amber-700 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`} role="status">
-                  {level === "low" ? <AlertTriangle className="h-4 w-4" /> : <BadgeCheck className="h-4 w-4" />}
-                  {level === "good" ? `איכות מעולה להדפסה (${dpi} DPI)` : level === "ok" ? `איכות סבירה (${dpi} DPI) — מומלץ 300` : `רזולוציה נמוכה למידה הזו (${dpi} DPI) — ההדפסה עלולה לצאת מטושטשת. מומלץ PDF וקטורי או תמונה גדולה יותר.`}
-                </p>
-              )}
-              {!art && <p className="text-sm text-muted-foreground">אין קובץ מוכן? אפשר להוסיף לעגלה עכשיו ולשלוח את הגרפיקה אחר כך בצ׳אט או במייל — נחכה לקובץ לפני שנתחיל לייצר.</p>}
+              {sides.map((sd) => { const x = sideInfo(sd), art = x.art; return (
+                <div key={sd.id} className="space-y-2">
+                  {sides.length > 1 && <p className="text-sm font-medium">{sd.label}{sd.cm && <span className="font-normal text-muted-foreground"> · עד {+sd.cm[0].toFixed(1)}×{+sd.cm[1].toFixed(1)} ס״מ</span>}</p>}
+                  <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-dashed p-5 text-sm text-foreground/80 hover:border-foreground/40">
+                    {art?.busy ? <Loader2 className="h-5 w-5 animate-spin" /> : art?.id ? <Check className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /> : <Upload className="h-5 w-5" />}
+                    <span className="min-w-0 break-words">{art ? `${art.name}${art.busy ? " — מעלה…" : art.id ? " — הועלה" : ""}` : `העלאת קובץ${sides.length > 1 ? ` ל${sd.label.split(" · ")[0]}` : " מוכן"} — PDF, PNG, JPG, SVG עד 25MB`}</span>
+                    <input type="file" className="sr-only" aria-label={`העלאת קובץ — ${sd.label}`} accept="application/pdf,image/png,image/jpeg,image/webp,image/svg+xml" onChange={(e) => { onFile(sd, e.target.files?.[0]); e.target.value = ""; }} />
+                  </label>
+                  {art?.error && <p className="text-sm text-red-600 dark:text-red-400" role="alert">{art.error}</p>}
+                  {x.level && (
+                    <p className={`flex items-center gap-2 text-xs ${x.level === "low" ? "text-amber-700 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`} role="status">
+                      {x.level === "low" ? <AlertTriangle className="h-4 w-4 shrink-0" /> : <BadgeCheck className="h-4 w-4 shrink-0" />}
+                      {x.level === "good" ? `איכות מעולה להדפסה (${x.dpi} DPI)` : x.level === "ok" ? `איכות סבירה (${x.dpi} DPI) — מומלץ 300` : `רזולוציה נמוכה למידה הזו (${x.dpi} DPI) — ההדפסה עלולה לצאת מטושטשת. מומלץ PDF וקטורי או תמונה גדולה יותר.`}
+                    </p>
+                  )}
+                </div>); })}
+              {!Object.values(arts).some(Boolean) && <p className="text-sm text-muted-foreground">אין קובץ מוכן? אפשר להוסיף לעגלה עכשיו ולשלוח את הגרפיקה אחר כך בצ׳אט או במייל — נחכה לקובץ לפני שנתחיל לייצר.</p>}
               <details className="rounded-xl border p-4 text-sm">
                 <summary className="cursor-pointer font-medium">הנחיות להכנת קובץ</summary>
                 <ul className="mt-3 list-disc space-y-1.5 pr-5 text-muted-foreground">
-                  {cm && <li>גודל ההדפסה: {+cm[0].toFixed(1)}×{+cm[1].toFixed(1)} ס״מ. הוסיפו 3 מ״מ רקע מכל צד (bleed).</li>}
+                  {side.cm && <li>גודל ההדפסה המקסימלי: {+side.cm[0].toFixed(1)}×{+side.cm[1].toFixed(1)} ס״מ. הוסיפו 3 מ״מ רקע מכל צד (bleed).</li>}
                   <li>מומלץ PDF וקטורי. תמונות ב-300 DPI לפחות בגודל ההדפסה.</li>
                   <li>טקסט ולוגו — לפחות 4 מ״מ מקו החיתוך (אזור בטוח). חיתוך עשוי לסטות ב-1 מ״מ.</li>
                   <li>טקסט בגודל 7pt לפחות, קווים בעובי 0.25pt לפחות.</li>
@@ -275,7 +287,7 @@ export function ProductWizard({ productId }: { productId: string }) {
             <div className="flex flex-wrap items-center gap-3 text-sm" role="status">
               <Check className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /> נוסף לעגלה!
               <Link href="/cart" className="ms-auto rounded-lg bg-foreground px-4 py-2 font-medium text-background">לעגלה ולתשלום</Link>
-              <button type="button" onClick={() => { setAdded(false); setArt(undefined); setStep(0); }} className="rounded-lg border px-4 py-2">עוד אחד</button>
+              <button type="button" onClick={() => { setAdded(false); setArts({}); setPlaced({}); setStep(0); }} className="rounded-lg border px-4 py-2">עוד אחד</button>
             </div>
           ) : (
             <div className="flex items-center gap-4">
@@ -284,7 +296,7 @@ export function ProductWizard({ productId }: { productId: string }) {
               ) : <p className="min-w-0 text-sm text-red-600 dark:text-red-400" role="alert">{line}</p>}
               {step < STEPS.length - 1
                 ? <button type="button" onClick={next} disabled={!ok} className="ms-auto shrink-0 rounded-lg bg-foreground px-5 py-2.5 font-medium text-background disabled:opacity-40">המשך</button>
-                : <button type="button" onClick={addToCart} disabled={!ok || art?.busy} className="ms-auto flex shrink-0 items-center gap-2 rounded-lg bg-foreground px-5 py-2.5 font-medium text-background disabled:opacity-40"><ShoppingCart className="h-4 w-4" /> הוספה לעגלה</button>}
+                : <button type="button" onClick={addToCart} disabled={!ok || Object.values(arts).some((a) => a?.busy)} className="ms-auto flex shrink-0 items-center gap-2 rounded-lg bg-foreground px-5 py-2.5 font-medium text-background disabled:opacity-40"><ShoppingCart className="h-4 w-4" /> הוספה לעגלה</button>}
             </div>
           )}
         </div>

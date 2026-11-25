@@ -3,6 +3,7 @@ import { connection } from "next/server";
 import Link from "next/link";
 import { ChevronDown, Download, MessageCircle, Globe } from "lucide-react";
 import { listOrders, STATUSES, type Order } from "@/lib/orders";
+import { lineFiles, type SideFile } from "@/lib/catalog";
 import { ils } from "@/lib/catalog";
 import { GlowCard } from "@/components/glow-card";
 import { updateStatus } from "./actions";
@@ -91,15 +92,23 @@ async function Orders({ searchParams }: { searchParams: PageProps<"/admin">["sea
                     <p className="text-xs text-muted-foreground">פריטים</p>
                     {o.items.map((l, i) => (
                       <div key={i} className="flex gap-4 rounded-xl border p-3">
-                        {l.artwork && !l.artwork.endsWith(".pdf") ? (
-                          // eslint-disable-next-line @next/next/no-img-element -- auth-protected file, not for next/image
-                          <img src={`/api/admin/file/${l.artwork}`} alt={`גרפיקה לפריט ${i + 1}`} className="h-20 w-20 shrink-0 rounded-lg border bg-muted object-contain" loading="lazy" />
-                        ) : <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-lg border text-xs text-muted-foreground">{l.artwork ? "PDF" : "אין קובץ"}</div>}
-                        <div className="min-w-0 flex-1 space-y-1">
+                        <div className="min-w-0 flex-1 space-y-2">
                           <p className="font-medium">{l.quantity.toLocaleString("he-IL")} × {l.productName} <span className="text-muted-foreground">· {ils(l.unitPrice)} ליח׳</span></p>
                           <p className="text-xs text-muted-foreground">{l.labels.map(([k, v]) => `${k}: ${v}`).join(" · ")}</p>
-                          <p className="text-xs text-muted-foreground">ייצור {l.productionLabel} ({l.productionDays} ימי עסקים){l.setup > 0 && ` · הכנה ${ils(l.setup)}`}{l.placement && ` · ${l.placement}`}</p>
-                          {l.artwork ? <a href={`/api/admin/file/${l.artwork}`} download={`${o.id}-${i + 1}.${l.artwork.split(".").pop()}`} className="inline-flex items-center gap-1.5 py-1.5 text-xs text-foreground/80 hover:text-foreground"><Download className="h-3.5 w-3.5" /> הורדת קובץ</a> : <p className="text-xs text-amber-700 dark:text-amber-400">טרם הועלתה גרפיקה</p>}
+                          <p className="text-xs text-muted-foreground">ייצור {l.productionLabel} ({l.productionDays} ימי עסקים){l.setup > 0 && ` · הכנה ${ils(l.setup)}`}</p>
+                          {(lineFiles(l).length ? lineFiles(l) : [{ side: "front" }]).map((f: SideFile, k) => (
+                            <div key={k} className="flex gap-3 rounded-lg bg-muted/40 p-2">
+                              {f.artwork && !f.artwork.endsWith(".pdf") ? (
+                                // eslint-disable-next-line @next/next/no-img-element -- auth-protected file, not for next/image
+                                <img src={`/api/admin/file/${f.artwork}`} alt={`גרפיקה ${f.label ?? ""}`} className="h-16 w-16 shrink-0 rounded-lg border bg-muted object-contain" loading="lazy" />
+                              ) : <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border text-xs text-muted-foreground">{f.artwork ? "PDF" : "אין קובץ"}</div>}
+                              <div className="min-w-0 space-y-0.5 text-xs">
+                                {f.label && <p className="font-medium">{f.label}</p>}
+                                {f.placement && <p className="text-muted-foreground">{f.placement}</p>}
+                                {f.artwork ? <a href={`/api/admin/file/${f.artwork}`} download={`${o.id}-${i + 1}-${f.side}.${f.artwork.split(".").pop()}`} className="inline-flex items-center gap-1.5 py-1 text-foreground/80 hover:text-foreground"><Download className="h-3.5 w-3.5" /> הורדת קובץ</a> : <p className="text-amber-700 dark:text-amber-400">טרם הועלתה גרפיקה</p>}
+                              </div>
+                            </div>
+                          ))}
                         </div>
                         <span className="font-semibold">{ils(l.subtotal)}</span>
                       </div>

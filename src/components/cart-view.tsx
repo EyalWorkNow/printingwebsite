@@ -149,7 +149,7 @@ export function Checkout() {
     setErr(""); setBusy(true);
     try {
       const r = await (await fetch("/api/order", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items: items.map(({ productId, quantity, options, split, production, artwork, placement }) => ({ productId, quantity, options, split, production, artwork, placement })), shipping: method, customer: c }) })).json();
+        body: JSON.stringify({ items: items.map(({ productId, quantity, options, split, production, artwork, placement, files }) => ({ productId, quantity, options, split, production, artwork, placement, files })), shipping: method, customer: c }) })).json();
       if (r.error) throw new Error(r.error);
       setDone(r); cart.clear();
     } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }

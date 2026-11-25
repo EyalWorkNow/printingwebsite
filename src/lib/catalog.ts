@@ -54,11 +54,18 @@ const LAMINATION: Option = { id: "lamination", title: "למינציה", values: 
 ] };
 const SHIRT_COLORS: Value[] = [["white", "לבן", "#fafafa"], ["black", "שחור", "#171717"], ["navy", "כחול כהה", "#1e2a5a"], ["red", "אדום", "#c62828"], ["green", "ירוק", "#2e7d4f"], ["gray", "אפור", "#9e9e9e"]]
   .map(([id, title, color]) => ({ id, title, color }));
-const SHIRT_PRINT: Option = { id: "print", title: "מיקום הדפסה", values: [
-  { id: "pocket", title: "כיס קדמי", cm: [10, 10] },
-  { id: "front", title: "קדמי מלא", tiers: [[1, 6], [20, 5], [100, 4]], cm: [28, 35] },
-  { id: "front-back", title: "קדמי + אחורי מלא", tiers: [[1, 18], [20, 15], [100, 12]], cm: [28, 35] },
-] };
+// Garment print: front (small included / large) and back (none / small / large), each with its own price and print area.
+const garmentPrint = (big: [number, number], small: [number, number] = [10, 10]): Option[] => [
+  { id: "front", title: "הדפסה קדמית", values: [
+    { id: "small", title: `קטנה — חזה (עד ${small[0]}×${small[1]} ס״מ)`, cm: small },
+    { id: "large", title: `גדולה — חזית מלאה (עד ${big[0]}×${big[1]} ס״מ)`, tiers: [[1, 6], [20, 5], [100, 4]], cm: big },
+  ] },
+  { id: "back", title: "הדפסה בגב", values: [
+    { id: "none", title: "ללא" },
+    { id: "small", title: `קטנה — מתחת לצווארון (עד ${small[0]}×${small[1]} ס״מ)`, tiers: [[1, 8], [20, 6], [100, 5]], cm: small },
+    { id: "large", title: `גדולה — גב מלא (עד ${big[0]}×${big[1]} ס״מ)`, tiers: [[1, 12], [20, 10], [100, 8]], cm: big },
+  ] },
+];
 const sizes = (...s: string[]): Option => ({ id: "size", title: "מידה", kind: "split", values: s.map((x) => ({ id: x, title: x })) });
 const PRINT_DAYS: ProductionId[] = ["express", "fast", "standard", "saver"];
 
@@ -129,12 +136,12 @@ const PRODUCTS: Product[] = [
   // ── apparel
   { id: "tshirt", name: "חולצה ממותגת", desc: "כותנה 100%, הדפסת DTF חדה ועמידה", category: "apparel", mockup: "shirt", image: "/img/tshirt.webp",
     base: [[1, 32], [10, 27], [20, 24], [50, 21], [100, 18]],
-    options: [{ id: "color", title: "צבע חולצה", kind: "color", values: SHIRT_COLORS }, SHIRT_PRINT, sizes("S", "M", "L", "XL", "XXL")],
+    options: [{ id: "color", title: "צבע חולצה", kind: "color", values: SHIRT_COLORS }, ...garmentPrint([28, 35]), sizes("S", "M", "L", "XL", "XXL")],
     qty: { min: 1, max: 1000, step: 1, presets: [1, 10, 20, 50, 100] }, production: ["fast", "standard", "saver"], printCm: [28, 35],
     details: ["כותנה סרוקה 160 גרם", "הדפסת DTF — עמידה בכביסה", "אפשר לחלק את הכמות בין מידות"] },
   { id: "hoodie", name: "קפוצ׳ון ממותג", desc: "פליז 280 גרם עם כיס קנגורו", category: "apparel", mockup: "shirt", image: "/img/hoodie.webp",
     base: [[1, 89], [10, 79], [20, 72], [50, 65]],
-    options: [{ id: "color", title: "צבע", kind: "color", values: SHIRT_COLORS.filter((c) => ["black", "navy", "gray", "white"].includes(c.id)) }, SHIRT_PRINT, sizes("S", "M", "L", "XL", "XXL")],
+    options: [{ id: "color", title: "צבע", kind: "color", values: SHIRT_COLORS.filter((c) => ["black", "navy", "gray", "white"].includes(c.id)) }, ...garmentPrint([25, 25]), sizes("S", "M", "L", "XL", "XXL")],
     qty: { min: 1, max: 500, step: 1, presets: [1, 10, 20, 50] }, production: ["fast", "standard"], printCm: [28, 35],
     details: ["פליז מוברש מבפנים", "קפוצ׳ון עם שרוך וכיס קנגורו", "אפשר לחלק את הכמות בין מידות"] },
   { id: "jacket", name: "ג׳קט פליז ממותג", desc: "פליז 300 גרם עם רוכסן מלא, רקמה או הדפסה בחזה", category: "apparel", mockup: "shirt", image: "/img/jacket.webp", setup: 60,
@@ -146,7 +153,7 @@ const PRODUCTS: Product[] = [
     details: ["פליז אנטי-פילינג עם שני כיסי רוכסן", "רקמה בחזה — מראה יוקרתי לצוות", "עלות הכנה כוללת דיגיטציה לרקמה", "אפשר לחלק את הכמות בין מידות"] },
   { id: "kids-tshirt", name: "חולצת ילדים", desc: "כותנה 100%, מידות 2–14", category: "apparel", mockup: "shirt",
     base: [[1, 28], [10, 23], [20, 20], [50, 17]],
-    options: [{ id: "color", title: "צבע חולצה", kind: "color", values: SHIRT_COLORS }, { ...SHIRT_PRINT, values: SHIRT_PRINT.values.map((v) => ({ ...v, cm: [20, 25] as [number, number] })) }, sizes("2", "4", "6", "8", "10", "12", "14")],
+    options: [{ id: "color", title: "צבע חולצה", kind: "color", values: SHIRT_COLORS }, ...garmentPrint([20, 25], [8, 8]), sizes("2", "4", "6", "8", "10", "12", "14")],
     qty: { min: 1, max: 1000, step: 1, presets: [1, 10, 20, 50] }, production: ["fast", "standard", "saver"], printCm: [20, 25],
     details: ["מושלם לחוגים, ימי הולדת וגנים", "הדפסה בטוחה לעור", "אפשר לחלק את הכמות בין מידות"] },
   { id: "cap", name: "כובע מצחייה ממותג", desc: "כותנה מוברשת, רקמה או הדפסה בחזית", category: "apparel", mockup: "cap", image: "/img/cap.webp", setup: 60,
@@ -227,12 +234,36 @@ export function normalize(p: Product, sel: Record<string, string> = {}) {
   return out;
 }
 
-export type LineInput = { productId: string; quantity?: number; options?: Record<string, string>; split?: Record<string, number>; production?: string; artwork?: string; placement?: string };
+/** One printed side of a line: its file and where/how big it goes. */
+export type SideFile = { side: string; label?: string; artwork?: string; placement?: string };
+export type LineInput = { productId: string; quantity?: number; options?: Record<string, string>; split?: Record<string, number>; production?: string; artwork?: string; placement?: string; files?: SideFile[] };
 export type Line = {
   productId: string; productName: string; quantity: number; options: Record<string, string>; labels: [string, string][];
   split?: Record<string, number>; production: ProductionId; productionLabel: string; productionDays: number;
-  unitPrice: number; setup: number; subtotal: number; artwork?: string; placement?: string;
+  unitPrice: number; setup: number; subtotal: number; artwork?: string; placement?: string; files?: SideFile[];
 };
+
+export type Side = { id: string; label: string; cm?: [number, number] };
+/** The printed sides of a product for the chosen options (one upload + placement each). */
+export function sidesOf(p: Product, sel: Record<string, string>): Side[] {
+  const val = (o: string) => p.options.find((x) => x.id === o)?.values.find((v) => v.id === sel[o]);
+  if (p.options.some((o) => o.id === "front")) {
+    return ([["front", "קדמי"], ["back", "גב"]] as const).flatMap(([id, label]) => {
+      const v = val(id);
+      return v && v.id !== "none" ? [{ id, label: `${label} · ${v.title.split(" — ")[0]}`, cm: v.cm }] : [];
+    });
+  }
+  const cm = printCmFor(p, sel);
+  if (p.id === "brochure") return [{ id: "outside", label: "צד חיצוני (שער + גב)", cm }, { id: "inside", label: "צד פנימי", cm }];
+  if (sel.sides === "2" || sel.print === "two") return [{ id: "front", label: "צד קדמי", cm }, { id: "back", label: "צד אחורי", cm }];
+  if (sel.branding === "chest-back") return [{ id: "front", label: "חזה", cm: [10, 10] }, { id: "back", label: "גב מלא", cm: [28, 35] }];
+  return [{ id: "front", label: "גרפיקה", cm }];
+}
+
+const ART_ID = /^[\w-]+\.(png|jpg|webp|pdf|svg)$/;
+/** All files of a line, old single-file lines included. */
+export const lineFiles = (l: Pick<Line, "artwork" | "placement" | "files">): SideFile[] =>
+  l.files?.length ? l.files : l.artwork || l.placement ? [{ side: "front", artwork: l.artwork, placement: l.placement }] : [];
 
 export function priceLine(cat: Catalog, input: LineInput): Line {
   const p = findProduct(cat, String(input.productId));
@@ -270,9 +301,20 @@ export function priceLine(cat: Catalog, input: LineInput): Line {
     labels: [...chosen.map(([o, v]) => [o.title, v.title] as [string, string]), ...(split ? [[splitOpt!.title, Object.entries(split).map(([k, n]) => `${k}×${n}`).join(", ")] as [string, string]] : [])],
     split, production, productionLabel: cat.production[production].label, productionDays: cat.production[production].days,
     unitPrice, setup, subtotal: r2(unitPrice * quantity + setup),
-    artwork: input.artwork && /^[\w-]+\.(png|jpg|webp|pdf|svg)$/.test(input.artwork) ? input.artwork : undefined,
-    placement: input.placement?.slice(0, 120),
+    ...lineArt(p, sel, input),
   };
+}
+
+// files per side, validated against the product's sides; artwork/placement mirror the first side for older readers
+function lineArt(p: Product, sel: Record<string, string>, input: LineInput) {
+  const sides = sidesOf(p, sel);
+  const art = (a?: string) => (a && ART_ID.test(a) ? a : undefined);
+  const raw = Array.isArray(input.files) && input.files.length ? input.files : [{ side: sides[0]?.id ?? "front", artwork: input.artwork, placement: input.placement }];
+  const files = sides.flatMap((sd) => {
+    const f = raw.find((x) => x && x.side === sd.id) ?? (raw.length === 1 && sides.length === 1 ? raw[0] : undefined);
+    return f && (art(f.artwork) || f.placement) ? [{ side: sd.id, label: sd.label, artwork: art(f.artwork), placement: typeof f.placement === "string" ? f.placement.slice(0, 160) : undefined }] : [];
+  });
+  return { files: files.length ? files : undefined, artwork: files[0]?.artwork, placement: files[0]?.placement };
 }
 
 export type Totals = { subtotal: number; shipping: number; vat: number; total: number; shippingMethod: ShippingId; shippingLabel: string; shippingDays: number };

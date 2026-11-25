@@ -1,6 +1,6 @@
 import path from "node:path";
 import nodemailer from "nodemailer";
-import { ils, addBusinessDays, type Line } from "./catalog";
+import { ils, addBusinessDays, lineFiles, type Line } from "./catalog";
 import { type Order } from "./orders";
 import { read } from "./storage";
 
@@ -77,8 +77,13 @@ const two = (a: string, b: string) => `<tr><td><table role="presentation" width=
 <td class="col" width="50%" valign="top" style="padding:0 0 12px 6px">${a}</td><td class="col" width="50%" valign="top" style="padding:0 6px 12px 0">${b}</td></tr></table></td></tr>`;
 const itemsTable = (items: Line[]) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0">${items.map((l) => `<tr><td style="padding:10px 0;border-bottom:1px solid #262626;vertical-align:top">
 <div style="font-size:15px;color:#fff;font-weight:600">${esc(l.quantity.toLocaleString("he-IL"))} × ${esc(l.productName)}</div>
-<div style="font-size:13px;color:#a3a3a3;line-height:20px">${l.labels.map(([k, v]) => `${esc(k)}: ${esc(v)}`).join(" · ")}<br>ייצור ${esc(l.productionLabel)} (${l.productionDays} ימי עסקים) · ${l.artwork ? "גרפיקה צורפה ✓" : `<span style="color:#fbbf24">חסרה גרפיקה</span>`}${l.placement ? ` · ${esc(l.placement)}` : ""}</div></td>
+<div style="font-size:13px;color:#a3a3a3;line-height:20px">${l.labels.map(([k, v]) => `${esc(k)}: ${esc(v)}`).join(" · ")}<br>ייצור ${esc(l.productionLabel)} (${l.productionDays} ימי עסקים) ${sideRows(l)}</div></td>
 <td align="left" style="padding:10px 0;border-bottom:1px solid #262626;vertical-align:top;font-size:15px;color:#fff;white-space:nowrap">${esc(ils(l.subtotal))}</td></tr>`).join("")}</table>`;
+// one row per printed side: file status + where/how big
+const missingArt = (l: Line) => { const f = lineFiles(l); return !f.length || f.some((x) => !x.artwork); };
+const sideRows = (l: Line) => { const f = lineFiles(l); return f.length
+  ? f.map((x) => `<br>${x.label ? `${esc(x.label)}: ` : ""}${x.artwork ? "גרפיקה צורפה ✓" : `<span style="color:#fbbf24">חסרה גרפיקה</span>`}${x.placement ? ` · ${esc(x.placement)}` : ""}`).join("")
+  : ` · <span style="color:#fbbf24">חסרה גרפיקה</span>`; };
 const summary = (o: Order) => o.items.map((l) => `${l.quantity} × ${l.productName}`).join(", ");
 const eta = (o: Order) => addBusinessDays(new Date(o.createdAt), Math.max(...o.items.map((l) => l.productionDays)) + o.totals.shippingDays)
   .toLocaleDateString("he-IL", { weekday: "long", day: "numeric", month: "long", timeZone: "Asia/Jerusalem" });
@@ -87,7 +92,7 @@ const where = (o: Order) => o.totals.shippingMethod === "pickup" ? "איסוף �
 export function renderOrderEmail(o: Order) {
   const t = o.totals, c = o.customer;
   const admin = `${site()}/admin?q=${encodeURIComponent(o.id)}`;
-  const missing = o.items.filter((l) => !l.artwork).length;
+  const missing = o.items.filter(missingArt).length;
 
   const html = shell(`הזמנה חדשה ${o.id}`, `${c.name} · ${summary(o)} · ${ils(t.total)}`, "הזמנה חדשה", `<tr><td style="padding-bottom:12px">${card("✦ " + esc(o.id),
   `<span style="font-size:28px;line-height:36px">${esc(ils(t.total))}</span>`,
@@ -97,7 +102,7 @@ ${two(card("☺ לקוח", esc(c.name), `<a href="tel:${esc(c.phone)}" style="co
   card("➜ " + esc(t.shippingLabel), t.shippingMethod === "pickup" ? "איסוף עצמי" : esc(c.city), `${where(o)}${c.notes ? `<br>הערות: ${esc(c.notes)}` : ""}<br>תשלום: טלפוני`, 320))}
 <tr><td style="padding-bottom:12px">${card("₪ פירוט", "סיכום מחיר", priceTable(o), 420)}</td></tr>`, { href: admin, label: "פתיחה בממשק הניהול" }, "התראה אוטומטית מאתר דפוס");
 
-  const text = [`הזמנה חדשה ${o.id} — ${ils(t.total)}`, ...o.items.map((l) => `• ${l.quantity} × ${l.productName} (${l.labels.map(([k, v]) => `${k}: ${v}`).join(", ")}) — ${ils(l.subtotal)}${l.artwork ? "" : " [חסרה גרפיקה]"}`),
+  const text = [`הזמנה חדשה ${o.id} — ${ils(t.total)}`, ...o.items.map((l) => `• ${l.quantity} × ${l.productName} (${l.labels.map(([k, v]) => `${k}: ${v}`).join(", ")}) — ${ils(l.subtotal)}${missingArt(l) ? " [חסרה גרפיקה]" : ""}${lineFiles(l).map((f) => f.placement ? ` | ${f.placement}` : "").join("")}`),
     `לקוח: ${c.name}, ${c.phone}${c.email ? ", " + c.email : ""}`, `משלוח: ${t.shippingLabel}${t.shippingMethod === "pickup" ? "" : ` — ${c.address}, ${c.city}`}`, admin].join("\n");
   return { subject: `הזמנה חדשה ${o.id} · ${c.name} · ${ils(t.total)}`, html, text };
 }
@@ -125,11 +130,13 @@ export async function sendOrderEmail(o: Order) {
   let budget = 15 * 1024 * 1024; // keep attachments under typical mailbox limits
   const attachments = [];
   for (const [i, l] of o.items.entries()) {
-    if (!l.artwork) continue;
-    const content = await read(`uploads/${l.artwork}`);
-    if (!content || content.length > budget) continue;
-    budget -= content.length;
-    attachments.push({ filename: `${o.id}-${i + 1}${path.extname(l.artwork)}`, content });
+    for (const f of lineFiles(l)) {
+      if (!f.artwork) continue;
+      const content = await read(`uploads/${f.artwork}`);
+      if (!content || content.length > budget) continue;
+      budget -= content.length;
+      attachments.push({ filename: `${o.id}-${i + 1}-${f.side}${path.extname(f.artwork)}`, content });
+    }
   }
   const art = { filename: "print.gif", content: await (await import("./email-art")).printGif(), cid: ART_CID, contentDisposition: "inline" as const };
   attachments.push(art);

@@ -25,11 +25,17 @@ assert.deepEqual(normalize(findProduct("business-card")!, { size: "square", orie
 assert.equal(normalize(findProduct("business-card")!, { paper: "eco300", lamination: "gloss" }).lamination, "none");
 
 // split quantities (shirt sizes)
-const sh = priceLine({ productId: "tshirt", split: { S: 4, M: 6 }, options: { color: "black", print: "front" } });
+const sh = priceLine({ productId: "tshirt", split: { S: 4, M: 6 }, options: { color: "black", front: "large" } });
 assert.equal(sh.quantity, 10);
 assert.equal(sh.unitPrice, 27 + 6);
 assert.deepEqual(sh.split, { S: 4, M: 6 });
 assert.equal(priceLine({ productId: "tshirt", quantity: 3 }).split?.S, 3); // no split → default size
+// front + back print: both priced, one file per side, unknown sides dropped
+const fb = priceLine({ productId: "tshirt", quantity: 10, options: { front: "large", back: "large" }, files: [{ side: "front", artwork: "a.png" }, { side: "back", artwork: "b.pdf", placement: "גב" }, { side: "sleeve", artwork: "c.png" }] });
+assert.equal(fb.unitPrice, 27 + 6 + 12); // 10 units: large front tier 6, large back tier 12
+assert.deepEqual(fb.files?.map((f) => [f.side, f.artwork]), [["front", "a.png"], ["back", "b.pdf"]]);
+assert.equal(fb.artwork, "a.png");
+assert.equal(priceLine({ productId: "tshirt", quantity: 1, artwork: "x.png" }).files?.[0].side, "front"); // single-file (chat) still works
 assert.throws(() => priceLine({ productId: "tshirt", split: { XS: 2 } }), /לא קיימת/);
 
 // quantity validation
