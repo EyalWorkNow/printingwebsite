@@ -4,6 +4,7 @@ import { BUSINESS, legalName } from "@/lib/content";
 import { CatalogProvider } from "@/components/catalog-provider";
 import { CartButton } from "@/components/cart-button";
 import { AccountButton } from "@/components/account-button";
+import { ShopNav } from "@/components/shop-nav";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Chat } from "@/components/chat";
 import { A11yMenu } from "@/components/a11y-menu";
@@ -22,12 +23,9 @@ export default async function ShopLayout({ children }: LayoutProps<"/[lang]">) {
       <CatalogProvider value={cat}>
         <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:start-3 focus:z-50 focus:rounded-lg focus:bg-foreground focus:px-4 focus:py-2 focus:text-background">{d.nav.skip}</a>
         <header className="sticky top-0 z-40 border-b bg-background/85 backdrop-blur">
-          <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 md:flex-nowrap md:gap-6 md:py-3">
+          <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2.5 md:flex-nowrap md:gap-4 md:py-2">
             <Link href={href("/")} className="text-xl font-bold tracking-tight">{brand}<span className="text-muted-foreground">.</span></Link>
-            <nav aria-label={d.nav.categories} className="order-last -mx-4 flex w-[calc(100%+2rem)] gap-1 overflow-x-auto px-3 text-sm text-muted-foreground [scrollbar-width:none] md:order-none md:mx-0 md:w-auto md:flex-1 md:px-0">
-              <Link href={href("/products")} className="shrink-0 rounded-lg px-2.5 py-1.5 text-foreground/80 hover:bg-foreground/5 hover:text-foreground">{d.nav.allProducts}</Link>
-              {cat.categories.map((c) => <Link key={c.id} href={href(`/c/${c.id}`)} className="shrink-0 rounded-lg px-2.5 py-1.5 hover:bg-foreground/5 hover:text-foreground">{c.name}</Link>)}
-            </nav>
+            <div className="order-last flex w-full justify-center md:order-none md:w-auto md:flex-1"><ShopNav /></div>
             <ThemeToggle className="ms-auto md:ms-0" t={d.theme} />
             <AccountButton />
             <CartButton />
