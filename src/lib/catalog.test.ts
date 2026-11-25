@@ -109,3 +109,15 @@ assert.equal(dpiLevel(printDpi([42, 59.4], 1000, 1400)), "low");
 assert.equal(addBusinessDays(new Date(2026, 10, 26), 1).getDay(), 0); // Thu + 1 business day → Sun
 assert.equal(addBusinessDays(new Date(2026, 10, 22), 5).getDate(), 29); // Sun + 5 → next Sun
 console.log("dpi + dates ok");
+
+// foreign markets: bulk paper unit prices are fractions of a cent — must price (not throw) and never show as 0
+{
+  const { localizeCatalog } = await import("../i18n/localize.ts");
+  const { MARKETS } = await import("../i18n/markets.ts");
+  const de = localizeCatalog(cat, {}, {}, cat.t ?? C.CATALOG_TEXT, MARKETS.de);
+  const l = C.priceLine(de, { productId: "business-card", quantity: 5000 });
+  assert.ok(l.unitPrice > 0 && l.unitPrice < 0.01 && l.subtotal > 10, `bulk € price ${l.unitPrice}/${l.subtotal}`);
+  assert.equal(C.totals(de, [l]).vat, Math.round((l.subtotal + (l.subtotal >= 59 ? 0 : 3.77)) * 0.19 * 100) / 100); // 19% MwSt + shipping
+  assert.ok(C.money(de)(0.0048).includes("0,0048"));
+  console.log("markets ok");
+}

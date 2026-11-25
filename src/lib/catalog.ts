@@ -224,13 +224,17 @@ export const liveProducts = (cat: Catalog) => cat.products.filter((p) => p.activ
 export const liveShipping = (cat: Catalog) => SHIPPING_IDS.filter((id) => cat.shipping[id].active !== false);
 
 const r2 = (n: number) => Math.round(n * 100 + 1e-9) / 100; // epsilon: 1.425 must round up
-export const ils = (n: number) => `₪${n.toLocaleString("he-IL", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+const r4 = (n: number) => Math.round(n * 10000 + 1e-9) / 10000;
+/** Sub-10-cent amounts (unit prices of bulk paper) keep up to 4 decimals so they never show as 0. */
+const decimals = (n: number) => (n !== 0 && Math.abs(n) < 0.1 ? 4 : 2);
+export const ils = (n: number) => `₪${n.toLocaleString("he-IL", { minimumFractionDigits: 0, maximumFractionDigits: decimals(n) })}`;
 /** Price formatter for a catalog's market (₪ / $ / € / AED). */
 export function money(cat?: Pick<Catalog, "market">) {
   const m = mk(cat);
   if (m.currency === "ILS") return ils;
-  const f = new Intl.NumberFormat(m.intl, { style: "currency", currency: m.currency, minimumFractionDigits: 0, maximumFractionDigits: 2 });
-  return (n: number) => f.format(n);
+  const f = (d: number) => new Intl.NumberFormat(m.intl, { style: "currency", currency: m.currency, minimumFractionDigits: 0, maximumFractionDigits: d });
+  const f2 = f(2), f4 = f(4);
+  return (n: number) => (decimals(n) === 4 ? f4 : f2).format(n);
 }
 export const num = (cat: Pick<Catalog, "market"> | undefined, n: number) => n.toLocaleString(mk(cat).intl);
 export const findProduct = (cat: Catalog, id: string) => cat.products.find((p) => p.id === id || p.name === id);
@@ -318,7 +322,8 @@ export function priceLine(cat: Catalog, input: LineInput): Line {
 
   const chosen = p.options.filter((o) => sel[o.id]).map((o) => [o, o.values.find((v) => v.id === sel[o.id])!] as const);
   const raw = tierAt(p.base, quantity) + chosen.reduce((s, [, v]) => s + tierAt(v.tiers, quantity), 0);
-  const unitPrice = r2(raw * (1 + cat.production[production].pct));
+  // sub-10-cent units keep 4 decimals (5000 business cards in € are fractions of a cent); the line total is rounded to cents
+  const u = raw * (1 + cat.production[production].pct), unitPrice = u < 0.1 ? r4(u) : r2(u);
   if (!(unitPrice > 0)) throw new Error(fill(t.priceError, { name: p.name }));
   const setup = p.setup ?? 0;
   return {
@@ -354,7 +359,7 @@ export function totals(cat: Catalog, lines: Pick<Line, "subtotal">[], method: st
   return { subtotal, shipping, vat, total: r2(subtotal + shipping + vat), shippingMethod: m, shippingLabel: s.label, shippingDays: s.days };
 }
 
-export const withVat = (n: number, cat?: Pick<Catalog, "market">) => r2(n * (1 + mk(cat).vat));
+export const withVat = (n: number, cat?: Pick<Catalog, "market">) => { const v = n * (1 + mk(cat).vat); return Math.abs(v) < 0.1 ? r4(v) : r2(v); };
 /** Lowest per-unit price incl. VAT (default options, largest preset, cheapest production) — for "החל מ-" labels. */
 export function fromPrice(cat: Catalog, p: Product) {
   const cheapest = p.production.toSorted((a, b) => cat.production[a].pct - cat.production[b].pct)[0];
