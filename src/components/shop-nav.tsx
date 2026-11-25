@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { usePathname } from "next/navigation";
-import { LayoutGrid, Printer, Sticker, Shirt, Gift, Tag, Sun, Moon, CircleUser, ShoppingCart } from "lucide-react";
+import { House, LayoutGrid, Printer, Sticker, Shirt, Gift, Tag, Sun, Moon, CircleUser, ShoppingCart } from "lucide-react";
 import { LiquidNav, type LiquidNavItem, type NimbusFx } from "./liquid-nav";
 import { useCatalog } from "./catalog-provider";
 import { useI18n } from "@/i18n/client";
@@ -35,6 +35,7 @@ export function ShopNav() {
   const { d, href } = useI18n();
   const path = useSitePath();
   const items: LiquidNavItem[] = [
+    { label: d.nav.home, href: href("/"), icon: <House />, fx: "glow" },
     { label: d.nav.allProducts, href: href("/products"), icon: <LayoutGrid />, fx: "pop" },
     ...cat.categories.map((c) => ({ label: c.name, href: href(`/c/${c.id}`), icon: ICONS[c.id]?.[0] ?? <Tag />, fx: ICONS[c.id]?.[1] ?? "pop" })),
   ];

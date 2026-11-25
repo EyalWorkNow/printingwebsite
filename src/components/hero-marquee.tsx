@@ -23,7 +23,11 @@ export function HeroMarquee(p: Props) {
       <motion.h1 initial="hidden" animate="show" variants={{ hidden: {}, show: { transition: { staggerChildren: 0.08 } } }}
         className="text-4xl leading-[1.1] font-extrabold tracking-tight text-balance md:text-7xl">
         {words(p.title1)}<br />
-        <span className="bg-gradient-to-l from-[#b23d8a] via-[#9a6200] to-[#3f7020] bg-clip-text text-transparent dark:from-[#dd7bbb] dark:via-[#d79f1e] dark:to-[#5a922c]">{words(p.title2)}</span>
+        {/* the gradient line animates as one piece: Safari (iOS) can't paint background-clip:text into animated child
+            elements, so per-word spans inside the gradient left the text fully transparent */}
+        <motion.span variants={FADE} className="inline-block">
+          <span className="bg-gradient-to-l from-[#b23d8a] via-[#9a6200] to-[#3f7020] bg-clip-text text-transparent dark:from-[#dd7bbb] dark:via-[#d79f1e] dark:to-[#5a922c]">{p.title2}</span>
+        </motion.span>
       </motion.h1>
       <motion.p initial="hidden" animate="show" variants={FADE} transition={{ delay: 0.5 }} className="mt-6 max-w-xl text-muted-foreground md:text-lg">{p.text}</motion.p>
       <motion.div initial="hidden" animate="show" variants={FADE} transition={{ delay: 0.6 }} className="mt-8 flex flex-wrap justify-center gap-3">

@@ -75,7 +75,9 @@ const STYLES = `
 .nimbus-nav[data-compact] .nimbus-item{padding:0 11px}
 .nimbus-nav[data-compact] .nimbus-label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .nv-badge{position:absolute;top:-9px;inset-inline-end:-13px;min-width:16px;height:16px;padding:0 4px;box-shadow:0 0 0 2px var(--background);border-radius:999px;background:var(--n-fg);color:var(--background);font-size:10px;font-weight:600;line-height:16px;text-align:center}
-@media (max-width:767px){.nv-dock .nimbus-nav{padding:6px}.nv-dock .nimbus-item{height:47px;padding:0 15px;font-size:15px}.nv-dock .nv-ico svg{width:22px;height:22px}} /* bottom dock: ×1.12×1.1 */
+@media (max-width:767px){.nv-dock .nimbus-nav{padding:6px}.nv-dock .nimbus-item{height:47px;padding:0 11px;font-size:15px}.nv-dock .nv-ico svg{width:22px;height:22px}
+  .nv-dock .nimbus-nav .nimbus-item[aria-current="page"] .nimbus-label{max-width:6em}} /* bottom dock: ×1.12×1.1; 6 items + the open label fit 375px */
+@media (max-width:374px){.nv-dock .nimbus-item{padding:0 8px}}
 /* icon-only modes: the selected item opens up and shows its name next to the icon */
 .nimbus-nav .nimbus-item[aria-current="page"] .nimbus-label{position:static;width:auto;height:auto;max-width:8.5em;overflow:hidden;text-overflow:ellipsis;clip:auto;animation:nvLabel .4s ease both}
 @keyframes nvLabel{from{opacity:0}to{opacity:1}}
