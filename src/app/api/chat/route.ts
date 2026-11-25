@@ -119,7 +119,7 @@ async function runTool(cat: Catalog, lang: Locale, cart: LineInput[], name: stri
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const l: unknown = body.lang, lang: Locale = isLocale(l) ? l : DEFAULT_LOCALE, t = DICTS[lang].chat;
-  const key = process.env.AI_API_KEY;
+  const key = process.env.AI_API_KEY?.trim();
   if (!key) return Response.json({ reply: t.notConnected });
 
   // only user/assistant text from the client — tool results are never trusted from the browser
@@ -141,7 +141,7 @@ export async function POST(req: Request) {
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
       body: JSON.stringify({ model: process.env.AI_MODEL ?? "deepseek-chat", messages, tools, temperature: 0.3 }),
     });
-    if (!res.ok) return Response.json({ reply: t.temporary, actions }, { status: 502 });
+    if (!res.ok) { console.error("[chat] AI provider", res.status, (await res.text()).slice(0, 300)); return Response.json({ reply: t.temporary, actions }, { status: 502 }); }
     const msg: Msg = (await res.json()).choices[0].message;
     messages.push(msg);
     if (!msg.tool_calls?.length) return Response.json({ reply: msg.content, actions });

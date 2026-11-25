@@ -1,6 +1,7 @@
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 import { MAX_UPLOAD, saveUpload, UPLOAD_KEY, UPLOAD_TYPES } from "@/lib/orders";
 import { BLOB } from "@/lib/storage";
+import { BLOB_TOKEN } from "@/lib/env";
 
 // Customer artwork. With Blob the browser uploads straight to storage (Vercel functions cap request bodies at 4.5MB);
 // this route only signs a token limited to one private uploads/<uuid>.<ext> key, allowed types and 25MB.
@@ -12,7 +13,7 @@ export async function POST(req: Request) {
     if (!BLOB) return Response.json({ error: "direct upload disabled" }, { status: 400 });
     try {
       return Response.json(await handleUpload({
-        request: req,
+        request: req, token: BLOB_TOKEN,
         body: (await req.json()) as HandleUploadBody,
         onBeforeGenerateToken: async (pathname) => {
           if (!UPLOAD_KEY.test(pathname)) throw new Error("bad path");
