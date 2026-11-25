@@ -1,0 +1,165 @@
+"use client";
+
+import { useActionState, useEffect, useState, useTransition } from "react";
+import { authChanged } from "@/lib/account-client";
+import Link from "next/link";
+import { Loader2 } from "lucide-react";
+import { useI18n } from "@/i18n/client";
+import { GlowCard } from "@/components/glow-card";
+import type { User } from "@/lib/auth";
+import * as A from "@/app/[lang]/(shop)/account/actions";
+
+const input = "w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none focus:border-foreground/50";
+const btn = "flex items-center justify-center gap-2 rounded-lg bg-foreground px-4 py-2.5 text-sm font-medium text-background disabled:opacity-50";
+
+/** useActionState, submitted via onSubmit so the form keeps what the user typed when the server answers with an error
+ *  (a plain `action={…}` form is reset by React after every submission). */
+function useAct(fn: (s: A.State, f: FormData) => Promise<A.State>, confirmText?: string) {
+  const [state, act, pending] = useActionState(fn, null);
+  const [, start] = useTransition();
+  const submit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (confirmText && !confirm(confirmText)) return;
+    const fd = new FormData(e.currentTarget);
+    start(() => act(fd));
+  };
+  return [state, submit, pending] as const;
+}
+
+function Field({ label, ...p }: { label: string } & React.InputHTMLAttributes<HTMLInputElement>) {
+  return <label className="block space-y-1 text-sm"><span className="text-muted-foreground">{label}</span><input className={input} {...p} /></label>;
+}
+function Status({ state, ok }: { state: A.State; ok?: string }) {
+  if (state?.error) return <p className="text-sm text-red-600 dark:text-red-400" role="alert">{state.error}</p>;
+  if (state?.ok && ok) return <p className="text-sm text-emerald-700 dark:text-emerald-400" role="status">{ok}</p>;
+  return null;
+}
+function Submit({ pending, children }: { pending: boolean; children: React.ReactNode }) {
+  return <button disabled={pending} className={btn}>{pending && <Loader2 className="h-4 w-4 animate-spin" />} {children}</button>;
+}
+
+/** Sign in / register / forgot password — signed-out view of /account. */
+export function AuthForms({ initial, next }: { initial: "login" | "register" | "forgot"; next?: string }) {
+  const { lang, d } = useI18n();
+  const k = d.account;
+  const [mode, setMode] = useState(initial);
+  useEffect(() => { authChanged(); }, []); // shown after sign-out: the header must drop the old name
+  const [ls, login, lp] = useAct(A.loginAction);
+  const [rs, register, rp] = useAct(A.registerAction);
+  const [fs, forgot, fp] = useAct(A.forgotAction);
+  const hidden = <><input type="hidden" name="lang" value={lang} />{next && <input type="hidden" name="next" value={next} />}</>;
+  const tab = (m: typeof mode, label: string) => (
+    <button type="button" role="tab" aria-selected={mode === m} onClick={() => setMode(m)}
+      className={`flex-1 rounded-lg py-2 text-sm ${mode === m ? "bg-foreground/10 font-medium text-foreground" : "text-muted-foreground hover:text-foreground"}`}>{label}</button>
+  );
+  return (
+    <GlowCard className="mx-auto h-auto max-w-md" inner="space-y-5">
+      {mode !== "forgot" && <div role="tablist" aria-label={k.tabsAria} className="flex gap-1 rounded-xl border p-1">{tab("login", k.login)}{tab("register", k.register)}</div>}
+      {mode === "login" && (
+        <form onSubmit={login} className="space-y-3">
+          {hidden}
+          <Field label={k.email} name="email" type="email" required autoComplete="email" dir="ltr" />
+          <Field label={k.password} name="password" type="password" required autoComplete="current-password" dir="ltr" />
+          <Status state={ls} />
+          <Submit pending={lp}>{k.login}</Submit>
+          <button type="button" onClick={() => setMode("forgot")} className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground">{k.forgot}</button>
+        </form>
+      )}
+      {mode === "register" && (
+        <form onSubmit={register} className="space-y-3">
+          {hidden}
+          <Field label={k.name} name="name" required minLength={2} autoComplete="name" />
+          <Field label={k.email} name="email" type="email" required autoComplete="email" dir="ltr" />
+          <Field label={k.phone} name="phone" type="tel" autoComplete="tel" dir="ltr" />
+          <Field label={k.passwordNew} name="password" type="password" required minLength={8} autoComplete="new-password" dir="ltr" />
+          <Status state={rs} />
+          <Submit pending={rp}>{k.register}</Submit>
+        </form>
+      )}
+      {mode === "forgot" && (
+        <form onSubmit={forgot} className="space-y-3">
+          {hidden}
+          <h2 className="text-lg font-semibold">{k.forgotTitle}</h2>
+          {fs?.ok ? <p role="status">{k.forgotSent}</p> : <>
+            <p className="text-sm text-muted-foreground">{k.forgotHint}</p>
+            <Field label={k.email} name="email" type="email" required autoComplete="email" dir="ltr" />
+            <Submit pending={fp}>{k.forgotSend}</Submit>
+          </>}
+          <button type="button" onClick={() => setMode("login")} className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground">{k.backToLogin}</button>
+        </form>
+      )}
+    </GlowCard>
+  );
+}
+
+export function ResetForm({ token }: { token: string }) {
+  const { lang, d, href } = useI18n();
+  const [s, action, p] = useAct(A.resetAction);
+  return (
+    <GlowCard className="mx-auto h-auto max-w-md" inner="space-y-4">
+      <h2 className="text-lg font-semibold">{d.account.resetTitle}</h2>
+      <form onSubmit={action} className="space-y-3">
+        <input type="hidden" name="lang" value={lang} /><input type="hidden" name="token" value={token} />
+        <Field label={d.account.passwordNew} name="password" type="password" required minLength={8} autoComplete="new-password" dir="ltr" />
+        <Status state={s} />
+        <Submit pending={p}>{d.account.resetSave}</Submit>
+      </form>
+      <Link href={href("/account")} className="text-sm text-muted-foreground underline underline-offset-4">{d.account.backToLogin}</Link>
+    </GlowCard>
+  );
+}
+
+export function ProfileForm({ user }: { user: User }) {
+  const { lang, d } = useI18n();
+  const k = d.account, p = user.profile;
+  const [s, action, pending] = useAct(A.profileAction);
+  useEffect(() => { authChanged(); }, [s]); // mount = just signed in; saved = name may have changed
+  return (
+    <form onSubmit={action} className="grid gap-3 sm:grid-cols-2">
+      <input type="hidden" name="lang" value={lang} />
+      <Field label={k.name} name="name" defaultValue={user.name} required minLength={2} autoComplete="name" />
+      <Field label={k.email} name="email" type="email" defaultValue={user.email} required autoComplete="email" dir="ltr" />
+      <Field label={k.phone} name="phone" type="tel" defaultValue={user.phone} autoComplete="tel" dir="ltr" />
+      <Field label={k.address} name="address" defaultValue={p.address} autoComplete="street-address" />
+      <Field label={k.city} name="city" defaultValue={p.city} autoComplete="address-level2" />
+      <Field label={k.zip} name="zip" defaultValue={p.zip} autoComplete="postal-code" />
+      <Field label={k.business} name="business" defaultValue={p.business} autoComplete="organization" />
+      <Field label={k.businessId} name="businessId" defaultValue={p.businessId} />
+      <div className="flex items-center gap-3 sm:col-span-2"><Submit pending={pending}>{k.save}</Submit><Status state={s} ok={k.saved} /></div>
+    </form>
+  );
+}
+
+export function PasswordForm() {
+  const { lang, d } = useI18n();
+  const k = d.account;
+  const [s, action, pending] = useAct(A.passwordAction);
+  return (
+    <form onSubmit={action} className="grid gap-3 sm:grid-cols-2">
+      <input type="hidden" name="lang" value={lang} />
+      <Field label={k.currentPassword} name="current" type="password" required autoComplete="current-password" dir="ltr" />
+      <Field label={k.newPassword} name="password" type="password" required minLength={8} autoComplete="new-password" dir="ltr" />
+      <div className="flex items-center gap-3 sm:col-span-2"><Submit pending={pending}>{k.changePassword}</Submit><Status state={s} ok={k.passwordChanged} /></div>
+    </form>
+  );
+}
+
+export function DeleteForm() {
+  const { lang, d } = useI18n();
+  const k = d.account;
+  const [s, action, pending] = useAct(A.deleteAction, k.deleteConfirm);
+  return (
+    <form onSubmit={action} className="space-y-3">
+      <input type="hidden" name="lang" value={lang} />
+      <p className="text-sm text-muted-foreground">{k.deleteHint}</p>
+      <div className="max-w-sm"><Field label={k.password} name="password" type="password" required autoComplete="current-password" dir="ltr" /></div>
+      <Status state={s} />
+      <button disabled={pending} className="rounded-lg border border-red-600/50 px-4 py-2 text-sm text-red-700 hover:bg-red-600/10 disabled:opacity-50 dark:text-red-400">{k.deleteButton}</button>
+    </form>
+  );
+}
+
+export function LogoutButton({ className }: { className?: string }) {
+  const { lang, d } = useI18n();
+  return <form action={A.logoutAction}><input type="hidden" name="lang" value={lang} /><button className={className}>{d.account.logout}</button></form>;
+}

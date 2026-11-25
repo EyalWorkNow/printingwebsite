@@ -1,6 +1,6 @@
 import { connection } from "next/server";
 import { db, HAS_DB } from "@/lib/db";
-import { adminConfigured } from "@/lib/admin-auth";
+import { adminCount } from "@/lib/auth";
 import { SITE_URL } from "@/lib/env";
 
 // Setup check for the owner: which services are connected and actually answering. Booleans/status words only — no values.
@@ -23,6 +23,6 @@ export async function GET() {
   return Response.json({
     database, files, ai, email: set("SMTP_URL"), notify: set("NOTIFY_EMAIL"),
     siteUrl: process.env.SITE_URL ? "set" : SITE_URL.startsWith("https://") ? "auto" : "missing",
-    admin: (await adminConfigured()) ? "set" : "missing — open /admin/setup",
+    admin: (await adminCount().catch(() => 0)) ? "set" : "missing — register at /account, then open /admin/setup",
   }, { headers: { "Cache-Control": "no-store" } });
 }

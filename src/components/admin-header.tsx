@@ -8,7 +8,7 @@ import { LOCALES, LOCALE_META, type Locale } from "@/i18n/config";
 import { ADMIN_LANG_COOKIE } from "@/i18n/admin";
 import { useAdmin } from "@/i18n/admin/client";
 
-export function AdminHeader({ active }: { active: "orders" | "catalog" | "markets" }) {
+export function AdminHeader({ active }: { active: "orders" | "catalog" | "markets" | "customers" }) {
   const { lang, t } = useAdmin();
   const router = useRouter();
   const tab = (on: boolean) => `rounded-lg px-3 py-1.5 ${on ? "bg-foreground/10 text-foreground" : "text-muted-foreground hover:text-foreground"}`;
@@ -24,6 +24,7 @@ export function AdminHeader({ active }: { active: "orders" | "catalog" | "market
         <Link href="/admin" className={tab(active === "orders")}>{t.nav.orders}</Link>
         <Link href="/admin/catalog" className={tab(active === "catalog")}>{t.nav.catalog}</Link>
         <Link href="/admin/markets" className={tab(active === "markets")}>{t.nav.markets}</Link>
+        <Link href="/admin/customers" className={tab(active === "customers")}>{t.nav.customers}</Link>
       </nav>
       <label className="ms-auto flex items-center gap-1.5 text-sm text-muted-foreground">
         <Languages className="h-4 w-4" aria-hidden />

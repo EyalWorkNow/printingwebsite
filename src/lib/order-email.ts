@@ -139,7 +139,7 @@ ${two(card("➜ " + esc(e.next), esc(e.nextTitle), steps, 220), card("≡ " + es
   return { subject: fill(e.subject, { id: o.id, brand }), html, text };
 }
 
-async function transport() {
+export async function transport() {
   const url = process.env.SMTP_URL;
   if (!url) return undefined;
   const t = nodemailer.createTransport(url);

@@ -1,10 +1,10 @@
-import { isAdmin } from "@/lib/admin-auth";
+import { isAdmin } from "@/lib/auth";
 import { parts } from "@/lib/storage";
 
 const TYPES: Record<string, string> = { png: "image/png", jpg: "image/jpeg", webp: "image/webp", pdf: "application/pdf", svg: "image/svg+xml" };
 
 export async function GET(req: Request, ctx: RouteContext<"/api/admin/file/[id]">) {
-  if (!await isAdmin(req.headers.get("authorization"))) return new Response(null, { status: 401 });
+  if (!await isAdmin()) return new Response(null, { status: 401 });
   const { id } = await ctx.params;
   const m = /^[\w-]+\.(png|jpg|webp|pdf|svg)$/.exec(id); // no path traversal
   if (!m) return new Response(null, { status: 400 });

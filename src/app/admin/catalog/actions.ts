@@ -1,8 +1,7 @@
 "use server";
 
-import { headers } from "next/headers";
 import { updateTag } from "next/cache";
-import { isAdmin } from "@/lib/admin-auth";
+import { isAdmin } from "@/lib/auth";
 import { DEFAULT_CATALOG, PRODUCTION_IDS, SHIPPING_IDS, MOCKUPS, catalogErrors, fill, mergeProductEdit, newProduct, isId, isImage, type Catalog, type Category, type MarketAdjust, type Mockup, type Product, type Production, type Shipping } from "@/lib/catalog";
 import { LOCALES } from "@/i18n/config";
 import { adminI18n } from "@/i18n/admin/server";
@@ -12,7 +11,7 @@ type Result = { ok: true; id?: string } | { ok: false; errors: string[] };
 
 // actions are reachable outside the proxy matcher — re-verify auth in every one
 async function guard() {
-  if (!await isAdmin((await headers()).get("authorization"))) throw new Error("unauthorized");
+  if (!await isAdmin()) throw new Error("unauthorized");
   return (await adminI18n()).t.errors;
 }
 

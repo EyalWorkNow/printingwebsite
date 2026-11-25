@@ -1,35 +1,22 @@
-"use client";
+import { connection } from "next/server";
+import { redirect } from "next/navigation";
+import { currentUser } from "@/lib/auth";
+import { adminI18n } from "@/i18n/admin/server";
+import { fill } from "@/lib/catalog";
+import { SetupForm } from "@/components/admin/setup-form";
 
-import { useActionState } from "react";
-import { Loader2 } from "lucide-react";
-import { useAdmin } from "@/i18n/admin/client";
-import { setupAdmin } from "./actions";
-
-const input = "w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none focus:border-foreground/50";
-
-export default function AdminSetup() {
-  const T = useAdmin().t.setup;
-  const [state, action, pending] = useActionState(setupAdmin, null);
+// A signed-in account that isn't an admin lands here (proxy). Admins go straight to the dashboard.
+export default async function AdminSetup() {
+  await connection();
+  const u = await currentUser();
+  if (!u) redirect("/account?next=/admin/setup");
+  if (u.isAdmin) redirect("/admin");
+  const T = (await adminI18n()).t.setup;
   return (
     <main className="mx-auto max-w-md space-y-5 px-4 py-12">
       <h1 className="text-2xl font-bold">{T.title}</h1>
-      {state?.ok ? (
-        <>
-          <p role="status">{T.saved}</p>
-          {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- full page load so the browser asks for the new login */}
-          <a href="/admin" className="inline-block rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background">{T.go}</a>
-        </>
-      ) : (
-        <form action={action} className="space-y-3">
-          <p className="text-sm text-muted-foreground">{T.intro}</p>
-          <label className="block space-y-1 text-sm"><span>{T.code}</span><input name="code" type="password" required autoComplete="off" dir="ltr" className={input} /></label>
-          <label className="block space-y-1 text-sm"><span>{T.user}</span><input name="user" required minLength={2} maxLength={40} autoComplete="username" dir="ltr" className={input} /></label>
-          <label className="block space-y-1 text-sm"><span>{T.password}</span><input name="password" type="password" required minLength={10} autoComplete="new-password" dir="ltr" className={input} /></label>
-          <label className="block space-y-1 text-sm"><span>{T.confirm}</span><input name="confirm" type="password" required minLength={10} autoComplete="new-password" dir="ltr" className={input} /></label>
-          {state?.error && <p className="text-sm text-red-600 dark:text-red-400" role="alert">{T[state.error]}</p>}
-          <button disabled={pending} className="flex items-center gap-2 rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50">{pending && <Loader2 className="h-4 w-4 animate-spin" />} {T.save}</button>
-        </form>
-      )}
+      <p className="text-sm text-muted-foreground">{fill(T.intro, { email: u.email })}</p>
+      <SetupForm />
     </main>
   );
 }

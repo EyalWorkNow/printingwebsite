@@ -1,6 +1,7 @@
 import { PRODUCTION_IDS, liveProducts, liveShipping, priceLine, totals, withVat, money, type Catalog, type LineInput } from "@/lib/catalog";
 import { getCatalog, localized, readCatalog } from "@/lib/catalog-store";
 import { createOrder, emailOrderToCustomer, getOrder } from "@/lib/orders";
+import { currentUser } from "@/lib/auth";
 import { DEFAULT_LOCALE, LOCALE_META, isLocale, type Locale } from "@/i18n/config";
 import { DICTS } from "@/i18n/dicts";
 
@@ -95,7 +96,7 @@ async function runTool(cat: Catalog, lang: Locale, cart: LineInput[], name: stri
       const useCart = args.useCart === true && cart.length > 0;
       const customer = { ...args };
       for (const k of ["items", "shipping", "useCart"]) delete customer[k];
-      const o = await createOrder({ items: useCart ? cart : items, shipping: args.shipping as string, customer, source: "chat", lang });
+      const o = await createOrder({ items: useCart ? cart : items, shipping: args.shipping as string, customer, source: "chat", lang, userId: (await currentUser())?.id });
       actions.push({ type: "order_placed", id: o.id, total: m(o.totals.total), clearCart: useCart });
       return { ok: true, orderId: o.id, total: m(o.totals.total), emailSent: !!o.customer.email };
     }

@@ -3,6 +3,7 @@ import { getLocalizedCatalog } from "@/lib/catalog-store";
 import { BUSINESS, legalName } from "@/lib/content";
 import { CatalogProvider } from "@/components/catalog-provider";
 import { CartButton } from "@/components/cart-button";
+import { AccountButton } from "@/components/account-button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Chat } from "@/components/chat";
 import { A11yMenu } from "@/components/a11y-menu";
@@ -28,6 +29,7 @@ export default async function ShopLayout({ children }: LayoutProps<"/[lang]">) {
               {cat.categories.map((c) => <Link key={c.id} href={href(`/c/${c.id}`)} className="shrink-0 rounded-lg px-2.5 py-1.5 hover:bg-foreground/5 hover:text-foreground">{c.name}</Link>)}
             </nav>
             <ThemeToggle className="ms-auto md:ms-0" t={d.theme} />
+            <AccountButton />
             <CartButton />
           </div>
         </header>

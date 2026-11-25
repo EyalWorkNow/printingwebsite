@@ -35,7 +35,7 @@ export function validateCustomer(c: Record<string, unknown>, needsAddress = true
   return out;
 }
 
-export async function createOrder(input: { items: LineInput[]; shipping?: string; customer: Record<string, unknown>; source: Order["source"]; lang?: unknown }): Promise<Order> {
+export async function createOrder(input: { items: LineInput[]; shipping?: string; customer: Record<string, unknown>; source: Order["source"]; lang?: unknown; userId?: string }): Promise<Order> {
   const lang = isLocale(input.lang) ? input.lang : DEFAULT_LOCALE, e = DICTS[lang].errors;
   if (!Array.isArray(input.items) || !input.items.length) throw new Error(e.emptyCart);
   if (input.items.length > 30) throw new Error(e.tooMany);
@@ -48,7 +48,7 @@ export async function createOrder(input: { items: LineInput[]; shipping?: string
     lang, currency: cat.market?.currency ?? "ILS",
   };
   const sql = await db();
-  await sql`insert into orders ${sql({ ...row(order), data: sql.json(order as never) })}`;
+  await sql`insert into orders ${sql({ ...row(order), user_id: input.userId ?? null, data: sql.json(order as never) })}`;
   // runs after the response is sent; a mail failure never fails the order
   after(() => import("./order-email").then((m) => m.sendOrderEmail(order)).catch((e) => console.error("[order-email]", order.id, e)));
   return order;
@@ -88,6 +88,13 @@ export async function orderStats() {
   ]);
   const map = (r: { k: string; n: number }[]) => Object.fromEntries(r.map((x) => [x.k, x.n])) as Record<string, number>;
   return { byStatus: map(byStatus), byLang: map(byLang), revenue: revenue.map((r) => ({ currency: r.currency, total: Number(r.total), n: r.n })) };
+}
+
+/** A customer's own orders (linked by account id only), newest first. */
+export async function userOrders(userId: string): Promise<Order[]> {
+  const sql = await db();
+  const rows = await sql<{ data: Order; status: string }[]>`select data, status from orders where user_id = ${userId} order by created_at desc limit 200`;
+  return rows.map(fromRow);
 }
 
 export async function getOrder(id: string): Promise<Order | null> {

@@ -45,6 +45,6 @@ export async function writePart(key: string, part: number, body: Buffer, content
 /** Whole file. `create: true` fails if it exists (never silently overwrite an upload). */
 export async function write(key: string, body: Buffer, opts: { contentType?: string; create?: boolean } = {}) {
   if (!opts.create && !HAS_DB) { await mkdir(path.dirname(local(key)), { recursive: true }); return writeFile(local(key), body); }
-  if (!opts.create) await (await db())`delete from files where key = ${key}`;
+  if (!opts.create) { const sql = await db(); await sql`delete from files where key = ${key}`; }
   for (let i = 0; i * PART < body.length || i === 0; i++) await writePart(key, i, body.subarray(i * PART, (i + 1) * PART), opts.contentType);
 }

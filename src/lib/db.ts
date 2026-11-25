@@ -2,7 +2,7 @@ import postgres from "postgres";
 import { DB_URL } from "./env";
 
 // The business database (Postgres — Neon via Vercel Storage in production, any Postgres locally).
-// Orders, every saved version of the catalog, customer files/product photos (table files, lib/storage) and the admin login live here.
+// Orders, every saved version of the catalog, customer files/product photos (table files, lib/storage) and customer/admin accounts (lib/auth) live here.
 // Vercel's Neon integration sets DATABASE_URL (or POSTGRES_URL); the schema is created on first use.
 // Query params are dropped (Supabase adds e.g. supa=…, which Postgres would reject as a setting); SSL is set below.
 const URL_ = DB_URL && (() => { try { const u = new URL(DB_URL); u.search = ""; return u.toString(); } catch { return DB_URL; } })();
@@ -37,10 +37,32 @@ create table if not exists files (
   created_at timestamptz not null default now(),
   primary key (key, part)
 );
-create table if not exists settings (
-  key text primary key,
-  value jsonb not null
-);`;
+create table if not exists users (
+  id text primary key,
+  email text not null unique,
+  name text not null,
+  phone text,
+  salt text not null,
+  hash text not null,
+  is_admin boolean not null default false,
+  lang text not null default 'he',
+  profile jsonb not null default '{}',
+  failed_logins int not null default 0,
+  locked_until timestamptz,
+  created_at timestamptz not null default now()
+);
+create table if not exists sessions (
+  token_hash text primary key,
+  user_id text not null references users (id) on delete cascade,
+  expires_at timestamptz not null
+);
+create table if not exists password_resets (
+  token_hash text primary key,
+  user_id text not null references users (id) on delete cascade,
+  expires_at timestamptz not null
+);
+alter table orders add column if not exists user_id text;
+create index if not exists orders_user_idx on orders (user_id, created_at desc);`;
 
 type Sql = ReturnType<typeof postgres>;
 const g = globalThis as unknown as { __dfusSql?: Sql; __dfusReady?: Promise<unknown>; __dfusSchema?: string };

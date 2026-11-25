@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useMe } from "@/lib/account-client";
 import Link from "next/link";
 import { Trash2, Minus, Plus, Check, Truck, Store, Zap, FileText } from "lucide-react";
 import { findProduct, priceLine, totals, withVat, money, num, mockupFor, tintFor, liveShipping, addBusinessDays, HE_MARKET, type Catalog, type Line, type ShippingId } from "@/lib/catalog";
@@ -123,7 +124,7 @@ const SHIP_ICON = { pickup: Store, home: Truck, express: Zap };
 
 export function Checkout() {
   const cat = useCatalog();
-  const { lang, d, f } = useI18n();
+  const { lang, d, f, href } = useI18n();
   const k = d.checkout, STEPS = k.steps, m = money(cat), mk = cat.market ?? HE_MARKET, il = lang === "he";
   const items = useCart();
   const today = useToday();
@@ -132,17 +133,20 @@ export function Checkout() {
   const [step, setStep] = useState(0);
   const [picked, setMethod] = useState<ShippingId>("home");
   const method = totals(cat, [], picked).shippingMethod; // falls back if the picked method was switched off
-  const [c, setC] = useState<Record<string, string>>({});
+  const [typed, setC] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [done, setDone] = useState<{ id: string; total: number; phone: string; emailed?: string }>();
+  const me = useMe();
+  // signed in: details come from the account until the customer types over them
+  const c: Record<string, string> = { ...(me ? Object.fromEntries(Object.entries({ name: me.name, phone: me.phone, email: me.email, ...me.profile }).filter(([, v]) => v)) as Record<string, string> : {}), ...typed };
 
   if (done) return <Done order={done} total={m(done.total)} onEmailed={(e) => setDone({ ...done, emailed: e })} />;
   if (!items.length) return <Empty />;
 
   const maxDays = Math.max(...lines.map((l) => l.productionDays));
   const eta = (s: ShippingId) => today && addBusinessDays(today, maxDays + cat.shipping[s].days, mk.weekend).toLocaleDateString(mk.intl, { weekday: "long", day: "numeric", month: "numeric" });
-  const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setC({ ...c, [k]: e.target.value });
+  const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setC({ ...typed, [k]: e.target.value });
 
   function next(e: React.FormEvent) { e.preventDefault(); setErr(""); setStep(step + 1); }
 
@@ -169,6 +173,7 @@ export function Checkout() {
           {step === 0 && (
             <form onSubmit={next} className="grid gap-3 sm:grid-cols-2">
               <h2 className="text-lg font-semibold sm:col-span-2">{k.details}</h2>
+              {me === null && <p className="text-sm text-muted-foreground sm:col-span-2">{d.account.checkoutHint} <Link href={`${href("/account")}?next=${encodeURIComponent(href("/checkout"))}`} className="font-medium text-foreground underline underline-offset-4">{d.account.checkoutLogin}</Link></p>}
               <input required minLength={2} placeholder={k.name} aria-label={k.name} value={c.name ?? ""} onChange={set("name")} className={input} autoComplete="name" />
               <input required pattern={il ? "0?5\\d{8}|\\+9725\\d{8}" : "\\+?[\\d\\s\\-]{7,20}"} title={k.phoneTitle} placeholder={k.phone} aria-label={k.phone} value={c.phone ?? ""} onChange={set("phone")} className={input} inputMode="tel" autoComplete="tel" dir="ltr" />
               <input type="email" placeholder={k.email} aria-label={k.email} value={c.email ?? ""} onChange={set("email")} className={`${input} sm:col-span-2`} autoComplete="email" dir="ltr" />
