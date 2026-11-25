@@ -3,7 +3,9 @@ import { Heebo } from "next/font/google";
 import "./globals.css";
 import { THEME_SCRIPT, A11Y_SCRIPT } from "@/lib/head-scripts";
 
-const heebo = Heebo({ variable: "--font-sans", subsets: ["hebrew", "latin"] });
+// SF Hebrew is Apple's system font: every Apple device (any browser) renders it via -apple-system; its licence doesn't
+// allow web embedding, so other systems fall back to Heebo (closest free match), loaded as a webfont.
+const heebo = Heebo({ variable: "--font-heebo", subsets: ["hebrew", "latin"] });
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.SITE_URL ?? "http://localhost:3007"),

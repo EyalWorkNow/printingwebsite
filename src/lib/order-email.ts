@@ -52,7 +52,7 @@ function shell(title: string, preheader: string, badge: string, inner: string, c
 @media (max-width:620px){.col{display:block!important;width:100%!important;padding:0 0 12px!important}}
 @media (prefers-reduced-motion:reduce){.glow,.rise,.dot{animation:none!important}}
 </style></head>
-<body style="margin:0;padding:0;background:#000;font-family:'Heebo',Arial,Helvetica,sans-serif;color:#fff">
+<body style="margin:0;padding:0;background:#000;font-family:-apple-system,BlinkMacSystemFont,'SF Hebrew','Segoe UI',Arial,Helvetica,sans-serif;color:#fff">
 <div style="display:none;max-height:0;overflow:hidden">${esc(preheader)}</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#000"><tr><td align="center" style="padding:28px 12px">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%" dir="rtl">

@@ -22,7 +22,7 @@ export async function POST(req: Request) {
     from: process.env.MAIL_FROM ?? `"דפוס — אתר" <${decodeURIComponent(new URL(url).username)}>`, to, replyTo: email || undefined,
     subject: `פנייה מהאתר · ${name}`,
     text: `${name}\n${phone}${email ? `\n${email}` : ""}\n\n${message}`,
-    html: `<div dir="rtl" style="font-family:Arial;font-size:15px"><p><b>${esc(name)}</b><br>${esc(phone)}${email ? `<br>${esc(email)}` : ""}</p><p style="white-space:pre-wrap">${esc(message)}</p></div>`,
+    html: `<div dir="rtl" style="font-family:-apple-system,BlinkMacSystemFont,\'SF Hebrew\',\'Segoe UI\',Arial,sans-serif;font-size:15px"><p><b>${esc(name)}</b><br>${esc(phone)}${email ? `<br>${esc(email)}` : ""}</p><p style="white-space:pre-wrap">${esc(message)}</p></div>`,
   });
   return Response.json({ ok: true });
 }
