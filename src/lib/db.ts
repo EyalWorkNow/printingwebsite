@@ -39,7 +39,11 @@ export async function db(): Promise<Sql> {
   // one pool per server instance (and across dev hot reloads)
   // prepare: false — transaction-mode poolers (Supabase :6543, PgBouncer) don't support prepared statements
   g.__dfusSql ??= postgres(URL_, { max: 5, idle_timeout: 20, prepare: false, ssl: /localhost|127\.0\.0\.1/.test(URL_) ? false : "require", onnotice: () => {} });
-  g.__dfusReady ??= g.__dfusSql.unsafe(SCHEMA).catch((e) => { g.__dfusReady = undefined; throw e; });
+  // the advisory lock serializes schema creation across processes (parallel build workers, cold starts):
+  // concurrent "create table if not exists" otherwise races on pg_type
+  const sql = g.__dfusSql;
+  g.__dfusReady ??= sql.begin(async (tx) => { await tx`select pg_advisory_xact_lock(724390125)`; await tx.unsafe(SCHEMA); })
+    .catch((e) => { g.__dfusReady = undefined; throw e; });
   await g.__dfusReady;
   return g.__dfusSql;
 }

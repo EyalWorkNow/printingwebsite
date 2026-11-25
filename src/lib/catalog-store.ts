@@ -11,14 +11,17 @@ export const CATALOG_TAG = "catalog";
 export async function getCatalog(): Promise<Catalog> {
   "use cache";
   cacheTag(CATALOG_TAG);
-  return readCatalog();
+  return shopCatalog();
 }
+
+/** The shop never goes down with the database: on a DB error it serves the built-in catalog (the admin uses readCatalog, which throws). */
+const shopCatalog = () => readCatalog().catch((e) => { console.error("[catalog] database unavailable, using built-in catalog:", e?.code ?? e?.message); return DEFAULT_CATALOG; });
 
 /** The live catalog for a locale: translated texts + that market's prices, currency, VAT and shipping. */
 export async function getLocalizedCatalog(lang: Locale): Promise<Catalog> {
   "use cache";
   cacheTag(CATALOG_TAG);
-  return localized(await readCatalog(), lang);
+  return localized(await shopCatalog(), lang);
 }
 
 /** Pure part (also used by the chat/order API, which can't use the cache): base catalog → locale's catalog. */
