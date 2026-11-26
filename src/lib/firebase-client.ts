@@ -12,16 +12,29 @@ const config = {
 /** Google / Apple popup → Firebase ID token (the server verifies it and opens our session). Firebase loads only on click.
  *  ponytail: no Analytics — it would need a cookie-consent banner; add with one. */
 const load = () => Promise.all([import("firebase/app"), import("firebase/auth")]);
-/** Load the SDK ahead of the click, so the popup opens straight from the tap (Safari blocks popups opened later). */
+/** Load the SDK ahead of the click. */
 export const warmFirebase = () => void load();
 
-export async function firebaseIdToken(provider: "google" | "apple"): Promise<string> {
-  const [{ initializeApp, getApps }, { getAuth, GoogleAuthProvider, OAuthProvider, signInWithPopup, signOut }] = await load();
-  const auth = getAuth(getApps()[0] ?? initializeApp({ ...config, authDomain: location.host }));
-  const apple = new OAuthProvider("apple.com");
+async function authOf() {
+  const [{ initializeApp, getApps }, a] = await load();
+  return { a, auth: a.getAuth(getApps()[0] ?? initializeApp({ ...config, authDomain: location.host })) };
+}
+
+/** Same-tab sign-in (Google / Apple): leaves for the provider and comes back to this page. The handler runs on our
+ *  own domain (/__/auth proxy), so it works with Chrome's storage partitioning and on iPhone (no popup). */
+export async function startSignIn(provider: "google" | "apple") {
+  const { a, auth } = await authOf();
+  const apple = new a.OAuthProvider("apple.com");
   apple.addScope("email"); apple.addScope("name");
-  const cred = await signInWithPopup(auth, provider === "google" ? new GoogleAuthProvider() : apple);
+  await a.signInWithRedirect(auth, provider === "google" ? new a.GoogleAuthProvider() : apple);
+}
+
+/** Back from the provider: its ID token (null when this page load isn't a sign-in return). */
+export async function finishSignIn(): Promise<string | null> {
+  const { a, auth } = await authOf();
+  const cred = await a.getRedirectResult(auth);
+  if (!cred) return null;
   const token = await cred.user.getIdToken();
-  await signOut(auth); // our own cookie session takes over; Firebase keeps nothing in the browser
+  await a.signOut(auth); // our own cookie session takes over; Firebase keeps nothing in the browser
   return token;
 }

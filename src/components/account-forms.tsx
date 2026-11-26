@@ -8,7 +8,7 @@ import { useI18n } from "@/i18n/client";
 import { GlowCard } from "@/components/glow-card";
 import type { User } from "@/lib/auth";
 import * as A from "@/app/[lang]/(shop)/account/actions";
-import { firebaseIdToken, warmFirebase } from "@/lib/firebase-client";
+import { finishSignIn, startSignIn } from "@/lib/firebase-client";
 
 const input = "w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none focus:border-foreground/50";
 const btn = "flex items-center justify-center gap-2 rounded-lg bg-foreground px-4 py-2.5 text-sm font-medium text-background disabled:opacity-50";
@@ -43,12 +43,14 @@ function SocialButtons({ next }: { next?: string }) {
   const { lang, d } = useI18n();
   const [pending, start] = useTransition();
   const [err, setErr] = useState("");
-  useEffect(warmFirebase, []);
-  const go = (p: "google" | "apple") => start(async () => {
-    setErr("");
-    try { const r = await A.firebaseLoginAction(await firebaseIdToken(p), lang, next); if (r.error) setErr(r.error); else location.assign(r.next!); }
-    catch (e) { console.error("[sign-in]", e); if (!String((e as { code?: string })?.code).includes("popup-closed")) setErr(d.account.errors.google); }
-  });
+  const fail = (e: unknown) => { console.error("[sign-in]", e); setErr(d.account.errors.google); };
+  useEffect(() => { // returning from Google / Apple: hand the token to the server, then reload signed in
+    start(async () => {
+      try { const t = await finishSignIn(); if (!t) return; const r = await A.firebaseLoginAction(t, lang, next); if (r.error) setErr(r.error); else location.assign(r.next!); }
+      catch (e) { fail(e); }
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const go = (p: "google" | "apple") => start(async () => { setErr(""); try { await startSignIn(p); } catch (e) { fail(e); } });
   return (
     <div className="space-y-3">
       <button type="button" onClick={() => go("google")} disabled={pending} className="flex w-full items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium hover:bg-foreground/5 disabled:opacity-50">
