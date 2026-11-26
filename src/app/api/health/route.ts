@@ -1,7 +1,7 @@
 import { connection } from "next/server";
 import { db, HAS_DB } from "@/lib/db";
 import { adminCount } from "@/lib/auth";
-import { SITE_URL } from "@/lib/env";
+import { SITE_URL, byName } from "@/lib/env";
 
 // Setup check for the owner: which services are connected and actually answering. Booleans/status words only — no values.
 export async function GET() {
@@ -10,7 +10,7 @@ export async function GET() {
     if (!on) return "missing";
     try { await fn(); return "ok"; } catch (e) { return `error: ${String((e as { code?: string }).code ?? (e as Error).message).replace(/\S+@\S+|postgres(ql)?:\/\/\S+/g, "…").slice(0, 120)}`; }
   };
-  const key = process.env.AI_API_KEY?.trim();
+  const key = (byName(/DEEPSEEK/) || process.env.AI_API_KEY)?.trim(); // ponytail: DEEPSEEK* wins over AI_API_KEY
   const [database, files, ai] = await Promise.all([
     check(HAS_DB, async () => { const sql = await db(); await sql`select 1`; }),
     check(HAS_DB, async () => { const sql = await db(); await sql`select 1 from files limit 1`; }), // customer files are stored in the database

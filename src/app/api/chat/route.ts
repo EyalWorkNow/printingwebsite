@@ -1,3 +1,4 @@
+import { byName } from "@/lib/env";
 import { PRODUCTION_IDS, liveProducts, liveShipping, priceLine, totals, withVat, money, type Catalog, type LineInput } from "@/lib/catalog";
 import { getCatalog, localized, readCatalog } from "@/lib/catalog-store";
 import { createOrder, emailOrderToCustomer, getOrder } from "@/lib/orders";
@@ -120,7 +121,7 @@ async function runTool(cat: Catalog, lang: Locale, cart: LineInput[], name: stri
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const l: unknown = body.lang, lang: Locale = isLocale(l) ? l : DEFAULT_LOCALE, t = DICTS[lang].chat;
-  const key = process.env.AI_API_KEY?.trim();
+  const key = (byName(/DEEPSEEK/) || process.env.AI_API_KEY)?.trim(); // ponytail: DEEPSEEK* wins over AI_API_KEY
   if (!key) return Response.json({ reply: t.notConnected });
 
   // only user/assistant text from the client — tool results are never trusted from the browser
