@@ -81,7 +81,12 @@ export async function db(): Promise<Sql> {
   // concurrent "create table if not exists" otherwise races on pg_type
   const sql = g.__dfusSql;
   if (g.__dfusSchema !== SCHEMA) { g.__dfusSchema = SCHEMA; g.__dfusReady = undefined; } // schema edited during dev (hot reload): run it again
-  g.__dfusReady ??= sql.begin(async (tx) => { await tx`select pg_advisory_xact_lock(724390125)`; await tx.unsafe(SCHEMA); })
+  // build: skip the DDL when the tables exist — "alter table … add column if not exists" still takes an exclusive lock on
+  // orders and queues behind the live site's transactions (Vercel builds hung on it); the live site migrates on first request
+  g.__dfusReady ??= (async () => {
+    if (building && (await sql`select to_regclass('public.catalog_versions') is not null as ok`)[0].ok) return;
+    await sql.begin(async (tx) => { await tx`select pg_advisory_xact_lock(724390125)`; await tx.unsafe(SCHEMA); });
+  })()
     .catch((e) => { g.__dfusReady = undefined; throw e; });
   await g.__dfusReady;
   return g.__dfusSql;
