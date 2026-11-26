@@ -454,6 +454,7 @@ const de: Dict = {
     deleteButton: "Konto endgültig löschen",
     deleteConfirm: "Konto löschen? Das kann nicht rückgängig gemacht werden.",
     google: "Weiter mit Google",
+    apple: "Weiter mit Apple",
     or: "oder",
     checkoutHint: "Bitte melden Sie sich an, um zu bestellen – die Bestellung wird in Ihrem Konto gespeichert und Ihre Daten werden ausgefüllt.",
     checkoutLogin: "Anmelden",
@@ -461,7 +462,7 @@ const de: Dict = {
     resetBody: "Wir haben eine Anfrage zum Zurücksetzen Ihres Passworts erhalten. Der Link ist eine Stunde gültig:",
     resetIgnore: "Nicht angefordert? Ignorieren Sie diese E-Mail — Ihr Passwort bleibt unverändert.",
     statuses: {"התקבלה": "Eingegangen", "בהכנה": "In Produktion", "נשלחה": "Versendet", "בוטלה": "Storniert" },
-    errors: {noDb: "Konten sind gerade nicht verfügbar", email: "Ungültige E-Mail-Adresse", password: "Das Passwort muss mindestens 8 Zeichen haben", name: "Name: mindestens 2 Zeichen", taken: "Mit dieser E-Mail gibt es bereits ein Konto", invalid: "E-Mail oder Passwort falsch", locked: "Zu viele Versuche. Bitte in 15 Minuten erneut versuchen.", expired: "Der Link ist ungültig oder abgelaufen. Fordern Sie einen neuen an.", badCode: "Falscher Code", wrongPassword: "Falsches Passwort", google: "Anmeldung mit Google fehlgeschlagen. Bitte erneut versuchen." },
+    errors: {noDb: "Konten sind gerade nicht verfügbar", email: "Ungültige E-Mail-Adresse", password: "Das Passwort muss mindestens 8 Zeichen haben", name: "Name: mindestens 2 Zeichen", taken: "Mit dieser E-Mail gibt es bereits ein Konto", invalid: "E-Mail oder Passwort falsch", locked: "Zu viele Versuche. Bitte in 15 Minuten erneut versuchen.", expired: "Der Link ist ungültig oder abgelaufen. Fordern Sie einen neuen an.", badCode: "Falscher Code", wrongPassword: "Falsches Passwort", google: "Anmeldung fehlgeschlagen. Bitte erneut versuchen." },
   },
   errors: {
     emptyCart: "Der Warenkorb ist leer",

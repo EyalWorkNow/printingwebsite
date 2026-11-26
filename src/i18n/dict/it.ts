@@ -454,6 +454,7 @@ const it: Dict = {
     deleteButton: "Elimina l’account definitivamente",
     deleteConfirm: "Eliminare l’account? L’operazione è irreversibile.",
     google: "Continua con Google",
+    apple: "Continua con Apple",
     or: "oppure",
     checkoutHint: "Accedi per ordinare: l’ordine viene salvato nel tuo account e i tuoi dati vengono compilati.",
     checkoutLogin: "Accedi",
@@ -461,7 +462,7 @@ const it: Dict = {
     resetBody: "Abbiamo ricevuto una richiesta di reimpostazione della password del tuo account. Il link è valido un’ora:",
     resetIgnore: "Non l’hai richiesto tu? Ignora questa email, la password non cambierà.",
     statuses: {"התקבלה": "Ricevuto", "בהכנה": "In produzione", "נשלחה": "Spedito", "בוטלה": "Annullato" },
-    errors: {noDb: "Gli account non sono disponibili al momento", email: "Indirizzo email non valido", password: "La password deve avere almeno 8 caratteri", name: "Nome: almeno 2 caratteri", taken: "Esiste già un account con questa email", invalid: "Email o password errate", locked: "Troppi tentativi. Riprova tra 15 minuti.", expired: "Il link non è valido o è scaduto. Richiedine uno nuovo.", badCode: "Codice errato", wrongPassword: "Password errata", google: "Accesso con Google non riuscito. Riprova." },
+    errors: {noDb: "Gli account non sono disponibili al momento", email: "Indirizzo email non valido", password: "La password deve avere almeno 8 caratteri", name: "Nome: almeno 2 caratteri", taken: "Esiste già un account con questa email", invalid: "Email o password errate", locked: "Troppi tentativi. Riprova tra 15 minuti.", expired: "Il link non è valido o è scaduto. Richiedine uno nuovo.", badCode: "Codice errato", wrongPassword: "Password errata", google: "Accesso non riuscito. Riprova." },
   },
   errors: {
     emptyCart: "Il carrello è vuoto",

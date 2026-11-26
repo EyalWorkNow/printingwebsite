@@ -454,6 +454,7 @@ const en: Dict = {
     deleteButton: "Delete account permanently",
     deleteConfirm: "Delete your account? This can't be undone.",
     google: "Continue with Google",
+    apple: "Continue with Apple",
     or: "or",
     checkoutHint: "Please sign in to place an order — your order is saved to your account and your details are filled in.",
     checkoutLogin: "Sign in",
@@ -461,7 +462,7 @@ const en: Dict = {
     resetBody: "We received a request to reset your account password. The link is valid for one hour:",
     resetIgnore: "Didn't ask for this? Ignore this email — your password won't change.",
     statuses: {"התקבלה": "Received", "בהכנה": "In production", "נשלחה": "Shipped", "בוטלה": "Cancelled" },
-    errors: {noDb: "Accounts are unavailable right now", email: "Invalid email address", password: "Password must be at least 8 characters", name: "Name: at least 2 characters", taken: "There's already an account with this email", invalid: "Wrong email or password", locked: "Too many attempts. Try again in 15 minutes.", expired: "This link is invalid or has expired. Request a new one.", badCode: "Wrong code", wrongPassword: "Wrong password", google: "Google sign-in failed. Please try again." },
+    errors: {noDb: "Accounts are unavailable right now", email: "Invalid email address", password: "Password must be at least 8 characters", name: "Name: at least 2 characters", taken: "There's already an account with this email", invalid: "Wrong email or password", locked: "Too many attempts. Try again in 15 minutes.", expired: "This link is invalid or has expired. Request a new one.", badCode: "Wrong code", wrongPassword: "Wrong password", google: "Sign-in failed. Please try again." },
   },
   errors: {
     emptyCart: "Your cart is empty",

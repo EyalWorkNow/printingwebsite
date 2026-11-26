@@ -454,6 +454,7 @@ const es: Dict = {
     deleteButton: "Eliminar la cuenta definitivamente",
     deleteConfirm: "¿Eliminar tu cuenta? No se puede deshacer.",
     google: "Continuar con Google",
+    apple: "Continuar con Apple",
     or: "o",
     checkoutHint: "Inicia sesión para hacer un pedido: el pedido se guarda en tu cuenta y tus datos se rellenan.",
     checkoutLogin: "Entrar",
@@ -461,7 +462,7 @@ const es: Dict = {
     resetBody: "Hemos recibido una solicitud para restablecer la contraseña de tu cuenta. El enlace es válido una hora:",
     resetIgnore: "¿No lo has pedido tú? Ignora este correo; tu contraseña no cambiará.",
     statuses: {"התקבלה": "Recibido", "בהכנה": "En producción", "נשלחה": "Enviado", "בוטלה": "Cancelado" },
-    errors: {noDb: "Las cuentas no están disponibles ahora", email: "Email no válido", password: "La contraseña debe tener al menos 8 caracteres", name: "Nombre: mínimo 2 caracteres", taken: "Ya existe una cuenta con este email", invalid: "Email o contraseña incorrectos", locked: "Demasiados intentos. Vuelve a intentarlo en 15 minutos.", expired: "El enlace no es válido o ha caducado. Solicita uno nuevo.", badCode: "Código incorrecto", wrongPassword: "Contraseña incorrecta", google: "No se pudo iniciar sesión con Google. Inténtalo de nuevo." },
+    errors: {noDb: "Las cuentas no están disponibles ahora", email: "Email no válido", password: "La contraseña debe tener al menos 8 caracteres", name: "Nombre: mínimo 2 caracteres", taken: "Ya existe una cuenta con este email", invalid: "Email o contraseña incorrectos", locked: "Demasiados intentos. Vuelve a intentarlo en 15 minutos.", expired: "El enlace no es válido o ha caducado. Solicita uno nuevo.", badCode: "Código incorrecto", wrongPassword: "Contraseña incorrecta", google: "No se pudo iniciar sesión. Inténtalo de nuevo." },
   },
   errors: {
     emptyCart: "El carrito está vacío",

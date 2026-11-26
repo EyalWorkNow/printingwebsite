@@ -454,6 +454,7 @@ const fr: Dict = {
     deleteButton: "Supprimer définitivement le compte",
     deleteConfirm: "Supprimer votre compte ? C’est irréversible.",
     google: "Continuer avec Google",
+    apple: "Continuer avec Apple",
     or: "ou",
     checkoutHint: "Connectez-vous pour commander : la commande est enregistrée dans votre compte et vos informations sont remplies.",
     checkoutLogin: "Se connecter",
@@ -461,7 +462,7 @@ const fr: Dict = {
     resetBody: "Nous avons reçu une demande de réinitialisation du mot de passe de votre compte. Le lien est valable une heure :",
     resetIgnore: "Vous n’êtes pas à l’origine de cette demande ? Ignorez cet e-mail, votre mot de passe ne changera pas.",
     statuses: {"התקבלה": "Reçue", "בהכנה": "En production", "נשלחה": "Expédiée", "בוטלה": "Annulée" },
-    errors: {noDb: "Les comptes sont indisponibles pour le moment", email: "Adresse e-mail invalide", password: "Le mot de passe doit contenir au moins 8 caractères", name: "Nom : 2 caractères minimum", taken: "Un compte existe déjà avec cet e-mail", invalid: "E-mail ou mot de passe incorrect", locked: "Trop de tentatives. Réessayez dans 15 minutes.", expired: "Ce lien est invalide ou a expiré. Demandez-en un nouveau.", badCode: "Code incorrect", wrongPassword: "Mot de passe incorrect", google: "La connexion avec Google a échoué. Veuillez réessayer." },
+    errors: {noDb: "Les comptes sont indisponibles pour le moment", email: "Adresse e-mail invalide", password: "Le mot de passe doit contenir au moins 8 caractères", name: "Nom : 2 caractères minimum", taken: "Un compte existe déjà avec cet e-mail", invalid: "E-mail ou mot de passe incorrect", locked: "Trop de tentatives. Réessayez dans 15 minutes.", expired: "Ce lien est invalide ou a expiré. Demandez-en un nouveau.", badCode: "Code incorrect", wrongPassword: "Mot de passe incorrect", google: "La connexion a échoué. Veuillez réessayer." },
   },
   errors: {
     emptyCart: "Votre panier est vide",
