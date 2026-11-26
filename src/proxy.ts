@@ -28,4 +28,4 @@ export async function proxy(req: NextRequest) {
 }
 
 // everything except Next internals, API routes, uploaded media and static files (anything with an extension)
-export const config = { matcher: ["/admin/:path*", "/api/admin/:path*", "/((?!api|_next|media|.*\\..*).*)"] };
+export const config = { matcher: ["/admin/:path*", "/api/admin/:path*", "/((?!api|_next|media|__/|.*\\..*).*)"] };

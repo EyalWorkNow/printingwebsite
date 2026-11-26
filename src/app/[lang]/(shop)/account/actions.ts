@@ -21,10 +21,10 @@ export async function loginAction(_: State, f: FormData): Promise<State> {
   redirect(safeNext(f.get("next"), l));
 }
 
-export async function firebaseLoginAction(idToken: string, lang: string, next?: string): Promise<State> {
+/** Returns where to go; the client reloads there (fresh header + cookie), no server redirect inside the popup flow. */
+export async function firebaseLoginAction(idToken: string, lang: string, next?: string): Promise<{ error?: string; next?: string }> {
   const l = isLocale(lang) ? lang : DEFAULT_LOCALE, e = await auth.loginWithFirebase(idToken, l);
-  if (e) return msg(l, e);
-  redirect(safeNext(next ?? null, l));
+  return e ? msg(l, e) : { next: safeNext(next ?? null, l) };
 }
 
 export async function registerAction(_: State, f: FormData): Promise<State> {

@@ -3,7 +3,6 @@
 // Firebase web config — public by design (Firebase docs); access is controlled by Authorized domains in the Firebase console.
 const config = {
   apiKey: "AIzaSyAxbME2f9Ns3DbJrlXx5869fzyIeplr8wg",
-  authDomain: "printing-89be5.firebaseapp.com",
   projectId: "printing-89be5",
   storageBucket: "printing-89be5.firebasestorage.app",
   messagingSenderId: "529022576701",
@@ -12,9 +11,13 @@ const config = {
 
 /** Google / Apple popup → Firebase ID token (the server verifies it and opens our session). Firebase loads only on click.
  *  ponytail: no Analytics — it would need a cookie-consent banner; add with one. */
+const load = () => Promise.all([import("firebase/app"), import("firebase/auth")]);
+/** Load the SDK ahead of the click, so the popup opens straight from the tap (Safari blocks popups opened later). */
+export const warmFirebase = () => void load();
+
 export async function firebaseIdToken(provider: "google" | "apple"): Promise<string> {
-  const [{ initializeApp, getApps }, { getAuth, GoogleAuthProvider, OAuthProvider, signInWithPopup, signOut }] = await Promise.all([import("firebase/app"), import("firebase/auth")]);
-  const auth = getAuth(getApps()[0] ?? initializeApp(config));
+  const [{ initializeApp, getApps }, { getAuth, GoogleAuthProvider, OAuthProvider, signInWithPopup, signOut }] = await load();
+  const auth = getAuth(getApps()[0] ?? initializeApp({ ...config, authDomain: location.host }));
   const apple = new OAuthProvider("apple.com");
   apple.addScope("email"); apple.addScope("name");
   const cred = await signInWithPopup(auth, provider === "google" ? new GoogleAuthProvider() : apple);
