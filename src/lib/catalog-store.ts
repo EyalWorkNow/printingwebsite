@@ -15,7 +15,11 @@ export async function getCatalog(): Promise<Catalog> {
 }
 
 /** The shop never goes down with the database: on a DB error it serves the built-in catalog (the admin uses readCatalog, which throws). */
-const shopCatalog = () => readCatalog().catch((e) => { console.error("[catalog] database unavailable, using built-in catalog:", e?.code ?? e?.message); return DEFAULT_CATALOG; });
+// ponytail: during `next build` a DB read that hangs (Vercel builds died at Next's 50s prerender limit) gives up after 15s →
+// built-in catalog; prerendered pages revalidate at runtime (default cacheLife ≈ 15 min), so the live data comes back by itself
+const BUILD = process.env.NEXT_PHASE === "phase-production-build";
+const limit = <T,>(p: Promise<T>) => !BUILD ? p : Promise.race([p, new Promise<never>((_, rej) => setTimeout(() => rej(new Error("build: DB read timed out after 15s")), 15000).unref())]);
+const shopCatalog = () => limit(readCatalog()).catch((e) => { console.error("[catalog] database unavailable, using built-in catalog:", e?.code ?? e?.message); return DEFAULT_CATALOG; });
 
 /** The live catalog for a locale: translated texts + that market's prices, currency, VAT and shipping. */
 export async function getLocalizedCatalog(lang: Locale): Promise<Catalog> {
