@@ -143,6 +143,12 @@ export function Checkout() {
 
   if (done) return <Done order={done} total={m(done.total)} onEmailed={(e) => setDone({ ...done, emailed: e })} />;
   if (!items.length) return <Empty />;
+  if (me === null) return ( // orders need an account
+    <div className="mx-auto max-w-md space-y-4 rounded-2xl border p-6 text-center">
+      <p className="text-sm text-muted-foreground">{d.account.checkoutHint}</p>
+      <Link href={`${href("/account")}?next=${encodeURIComponent(href("/checkout"))}`} className="block rounded-lg bg-foreground py-3 font-medium text-background">{d.account.checkoutLogin}</Link>
+    </div>
+  );
 
   const maxDays = Math.max(...lines.map((l) => l.productionDays));
   const eta = (s: ShippingId) => today && addBusinessDays(today, maxDays + cat.shipping[s].days, mk.weekend).toLocaleDateString(mk.intl, { weekday: "long", day: "numeric", month: "numeric" });
@@ -173,7 +179,6 @@ export function Checkout() {
           {step === 0 && (
             <form onSubmit={next} className="grid gap-3 sm:grid-cols-2">
               <h2 className="text-lg font-semibold sm:col-span-2">{k.details}</h2>
-              {me === null && <p className="text-sm text-muted-foreground sm:col-span-2">{d.account.checkoutHint} <Link href={`${href("/account")}?next=${encodeURIComponent(href("/checkout"))}`} className="font-medium text-foreground underline underline-offset-4">{d.account.checkoutLogin}</Link></p>}
               <input required minLength={2} placeholder={k.name} aria-label={k.name} value={c.name ?? ""} onChange={set("name")} className={input} autoComplete="name" />
               <input required pattern={il ? "0?5\\d{8}|\\+9725\\d{8}" : "\\+?[\\d\\s\\-]{7,20}"} title={k.phoneTitle} placeholder={k.phone} aria-label={k.phone} value={c.phone ?? ""} onChange={set("phone")} className={input} inputMode="tel" autoComplete="tel" dir="ltr" />
               <input type="email" placeholder={k.email} aria-label={k.email} value={c.email ?? ""} onChange={set("email")} className={`${input} sm:col-span-2`} autoComplete="email" dir="ltr" />

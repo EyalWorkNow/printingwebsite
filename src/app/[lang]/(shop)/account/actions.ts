@@ -21,6 +21,12 @@ export async function loginAction(_: State, f: FormData): Promise<State> {
   redirect(safeNext(f.get("next"), l));
 }
 
+export async function firebaseLoginAction(idToken: string, lang: string, next?: string): Promise<State> {
+  const l = isLocale(lang) ? lang : DEFAULT_LOCALE, e = await auth.loginWithFirebase(idToken, l);
+  if (e) return msg(l, e);
+  redirect(safeNext(next ?? null, l));
+}
+
 export async function registerAction(_: State, f: FormData): Promise<State> {
   const l = langOf(f), e = await auth.register({ email: f.get("email"), password: f.get("password"), name: f.get("name"), phone: f.get("phone"), lang: l });
   if (e) return msg(l, e);

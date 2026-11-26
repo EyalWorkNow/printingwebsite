@@ -94,10 +94,12 @@ async function runTool(cat: Catalog, lang: Locale, cart: LineInput[], name: stri
       return { ok: true };
     }
     if (name === "place_order") {
+      const user = await currentUser();
+      if (!user) { actions.push({ type: "navigate", path: "/account" }); return { error: "The customer must sign in first (Google or email). The sign-in page was opened for them; their cart is kept — ask them to sign in and then finish at checkout." }; }
       const useCart = args.useCart === true && cart.length > 0;
       const customer = { ...args };
       for (const k of ["items", "shipping", "useCart"]) delete customer[k];
-      const o = await createOrder({ items: useCart ? cart : items, shipping: args.shipping as string, customer, source: "chat", lang, userId: (await currentUser())?.id });
+      const o = await createOrder({ items: useCart ? cart : items, shipping: args.shipping as string, customer, source: "chat", lang, userId: user.id });
       actions.push({ type: "order_placed", id: o.id, total: m(o.totals.total), clearCart: useCart });
       return { ok: true, orderId: o.id, total: m(o.totals.total), emailSent: !!o.customer.email };
     }

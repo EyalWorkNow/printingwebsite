@@ -1,6 +1,7 @@
 import { createHash, randomBytes, randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { cache } from "react";
+import { createRemoteJWKSet, jwtVerify } from "jose";
 import { db, HAS_DB } from "./db";
 import { byName, DB_URL } from "./env";
 
@@ -15,7 +16,7 @@ export const PW_MIN = 8;
 
 export type Profile = { address?: string; city?: string; zip?: string; business?: string; businessId?: string };
 export type User = { id: string; email: string; name: string; phone: string; isAdmin: boolean; lang: string; profile: Profile; createdAt: string };
-export type AuthError = "noDb" | "email" | "password" | "name" | "taken" | "invalid" | "locked" | "expired" | "badCode" | "wrongPassword";
+export type AuthError = "noDb" | "email" | "password" | "name" | "taken" | "invalid" | "locked" | "expired" | "badCode" | "wrongPassword" | "google";
 type Row = { id: string; email: string; name: string; phone: string | null; is_admin: boolean; lang: string; profile: Profile | null; created_at: Date; salt: string; hash: string; failed_logins: number; locked_until: Date | null };
 
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
@@ -58,6 +59,24 @@ export async function register(input: { email: unknown; password: unknown; name:
     on conflict (email) do nothing`;
   if (!r.count) return "taken";
   await startSession(id);
+  return null;
+}
+
+// Firebase sign-in (Google): the browser signs in with Firebase and sends its ID token; we verify it against Google's keys
+// and open our own session. A verified email is linked to an existing account with that email (or creates one).
+export const FIREBASE_PROJECT = "printing-89be5";
+const firebaseKeys = createRemoteJWKSet(new URL("https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com"));
+
+export async function loginWithFirebase(idToken: unknown, lang = "he"): Promise<AuthError | null> {
+  if (!HAS_DB) return "noDb";
+  if (typeof idToken !== "string" || idToken.length > 5000) return "google";
+  const t = await jwtVerify(idToken, firebaseKeys, { issuer: `https://securetoken.google.com/${FIREBASE_PROJECT}`, audience: FIREBASE_PROJECT }).catch(() => null);
+  const email = normEmail(t?.payload.email);
+  if (!t || t.payload.email_verified !== true || !validEmail(email)) return "google";
+  const name = str(t.payload.name, 100) || email.split("@")[0], s = secret(randomBytes(24).toString("hex")), sql = await db(); // random password: Google-only until a reset
+  const [u] = await sql<{ id: string }[]>`insert into users (id, email, name, lang, salt, hash) values (${randomUUID()}, ${email}, ${name}, ${lang}, ${s.salt}, ${s.hash})
+    on conflict (email) do update set email = excluded.email returning id`;
+  await startSession(u.id);
   return null;
 }
 
