@@ -1,9 +1,10 @@
+import { pageMeta } from "@/lib/seo";
 import { CartView } from "@/components/cart-view";
 import { getI18n } from "@/i18n/server";
 
 export async function generateMetadata() {
-  const { d } = await getI18n();
-  return { title: `${d.cart.title} — ${d.meta.titleSuffix}`, robots: { index: false } };
+  const { lang, d } = await getI18n();
+  return pageMeta(lang, "/cart", { title: `${d.cart.title} — ${d.meta.titleSuffix}`, noindex: true });
 }
 
 export default async function CartPage() {

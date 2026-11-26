@@ -1,9 +1,10 @@
+import { pageMeta } from "@/lib/seo";
 import { Checkout } from "@/components/cart-view";
 import { getI18n } from "@/i18n/server";
 
 export async function generateMetadata() {
-  const { d } = await getI18n();
-  return { title: `${d.checkout.title} — ${d.meta.titleSuffix}`, robots: { index: false } };
+  const { lang, d } = await getI18n();
+  return pageMeta(lang, "/checkout", { title: `${d.checkout.title} — ${d.meta.titleSuffix}`, noindex: true });
 }
 
 export default async function CheckoutPage() {

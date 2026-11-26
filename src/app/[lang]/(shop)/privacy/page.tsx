@@ -1,10 +1,11 @@
+import { pageMeta } from "@/lib/seo";
 import { DocPage, fillSections } from "@/components/doc-page";
 import { legalName, BUSINESS } from "@/lib/content";
 import { getI18n } from "@/i18n/server";
 
 export async function generateMetadata() {
-  const { d } = await getI18n();
-  return { title: `${d.legal.privacy.title} — ${d.meta.titleSuffix}` };
+  const { lang, d } = await getI18n();
+  return pageMeta(lang, "/privacy", { title: `${d.legal.privacy.title} — ${d.meta.titleSuffix}` });
 }
 
 export default async function Privacy() {

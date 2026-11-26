@@ -1,11 +1,12 @@
+import { pageMeta } from "@/lib/seo";
 import Image from "next/image";
 import Link from "next/link";
 import { GlowCard } from "@/components/glow-card";
 import { getI18n } from "@/i18n/server";
 
 export async function generateMetadata() {
-  const { d } = await getI18n();
-  return { title: `${d.about.title} — ${d.meta.titleSuffix}`, description: d.about.metaDesc };
+  const { lang, d } = await getI18n();
+  return pageMeta(lang, "/about", { title: `${d.about.title} — ${d.meta.titleSuffix}`, description: d.about.metaDesc });
 }
 
 export default async function About() {

@@ -1,3 +1,4 @@
+import { pageMeta } from "@/lib/seo";
 import { Suspense } from "react";
 import Link from "next/link";
 import { Loader2, Settings } from "lucide-react";
@@ -10,8 +11,8 @@ import { GlowCard } from "@/components/glow-card";
 import { AuthForms, DeleteForm, LogoutButton, PasswordForm, ProfileForm, ResetForm } from "@/components/account-forms";
 
 export async function generateMetadata() {
-  const { d } = await getI18n();
-  return { title: `${d.account.title} — ${d.meta.titleSuffix}`, robots: { index: false } };
+  const { lang, d } = await getI18n();
+  return pageMeta(lang, "/account", { title: `${d.account.title} — ${d.meta.titleSuffix}`, noindex: true });
 }
 
 export default async function AccountPage({ searchParams }: PageProps<"/[lang]/account">) {

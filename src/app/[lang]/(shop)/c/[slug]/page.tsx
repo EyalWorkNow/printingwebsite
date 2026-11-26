@@ -1,3 +1,5 @@
+import { JsonLd, breadcrumbLd, itemListLd, pageMeta } from "@/lib/seo";
+import { localePath } from "@/i18n/config";
 import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -12,7 +14,7 @@ export async function generateMetadata({ params }: PageProps<"/[lang]/c/[slug]">
   const { slug } = await params;
   const { lang, d } = await getI18n();
   const c = (await getLocalizedCatalog(lang)).categories.find((x) => x.id === slug);
-  return c ? { title: `${c.name} — ${d.meta.titleSuffix}`, description: c.desc } : {};
+  return c ? pageMeta(lang, `/c/${c.id}`, { title: `${c.name} — ${d.meta.titleSuffix}`, description: c.desc, image: c.image }) : {};
 }
 
 // Suspense: params are URL data — keeps client navigations instant (shell renders while the slug resolves)
@@ -29,6 +31,8 @@ async function Body({ params }: { params: PageProps<"/[lang]/c/[slug]">["params"
   const items = liveProducts(cat).filter((p) => p.category === c.id);
   return (
     <div className="space-y-8">
+      <JsonLd data={breadcrumbLd([[d.nav.home, localePath(lang, "/")], [c.name, localePath(lang, `/c/${c.id}`)]])} />
+      <JsonLd data={itemListLd(items, lang)} />
       <nav aria-label={d.nav.breadcrumbs} className="text-sm text-muted-foreground"><Link href={href("/")} className="inline-block py-1.5 hover:text-foreground">{d.nav.home}</Link> / <span className="text-foreground/80">{c.name}</span></nav>
       <header className="space-y-2">
         <h1 className="text-3xl font-bold md:text-4xl">{c.name}</h1>

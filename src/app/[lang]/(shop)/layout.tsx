@@ -1,3 +1,4 @@
+import { JsonLd, siteLd } from "@/lib/seo";
 import Link from "next/link";
 import { getLocalizedCatalog } from "@/lib/catalog-store";
 import { BUSINESS, legalName } from "@/lib/content";
@@ -17,6 +18,7 @@ export default async function ShopLayout({ children }: LayoutProps<"/[lang]">) {
   const brand = lang === "he" ? BUSINESS.brand : d.meta.brand;
   return (
     <I18nProvider lang={lang} d={d}>
+      <JsonLd data={siteLd(lang)} />
       <CatalogProvider value={cat}>
         <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:start-3 focus:z-50 focus:rounded-lg focus:bg-foreground focus:px-4 focus:py-2 focus:text-background">{d.nav.skip}</a>
         <header className="pointer-events-none sticky top-0 z-40">

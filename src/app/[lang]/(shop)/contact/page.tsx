@@ -1,3 +1,4 @@
+import { pageMeta } from "@/lib/seo";
 import { MessageCircle, Phone, Mail, MapPin, Clock } from "lucide-react";
 import { BUSINESS } from "@/lib/content";
 import { ContactForm } from "@/components/contact-form";
@@ -5,8 +6,8 @@ import { GlowCard } from "@/components/glow-card";
 import { getI18n } from "@/i18n/server";
 
 export async function generateMetadata() {
-  const { d } = await getI18n();
-  return { title: `${d.contact.title} — ${d.meta.titleSuffix}`, description: d.contact.metaDesc };
+  const { lang, d } = await getI18n();
+  return pageMeta(lang, "/contact", { title: `${d.contact.title} — ${d.meta.titleSuffix}`, description: d.contact.metaDesc });
 }
 
 export default async function Contact() {

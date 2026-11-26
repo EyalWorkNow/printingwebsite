@@ -3,7 +3,8 @@ import type { Metadata } from "next";
 import { Heebo } from "next/font/google";
 import "../globals.css";
 import { THEME_SCRIPT, A11Y_SCRIPT } from "@/lib/head-scripts";
-import { LOCALES, LOCALE_META, localePath } from "@/i18n/config";
+import { LOCALES, LOCALE_META } from "@/i18n/config";
+import { pageMeta } from "@/lib/seo";
 import { getI18n, getLocale } from "@/i18n/server";
 
 // SF Hebrew / SF Arabic are Apple's system fonts: every Apple device (any browser) renders them via -apple-system; their
@@ -14,14 +15,10 @@ export const generateStaticParams = () => LOCALES.map((lang) => ({ lang }));
 
 export async function generateMetadata(): Promise<Metadata> {
   const { lang, d } = await getI18n();
-  return {
-    metadataBase: new URL(SITE_URL),
-    title: d.meta.title,
-    description: d.meta.description,
-    openGraph: { type: "website", locale: LOCALE_META[lang].og, siteName: d.meta.brand, images: [{ url: "/img/set-flatlay.webp", width: 1200, height: 1200 }] },
-    alternates: { canonical: localePath(lang, "/"), languages: Object.fromEntries(LOCALES.map((l) => [l, localePath(l, "/")])) },
-  };
+  // defaults = the home page; every other page sets its own canonical/hreflang/OG via pageMeta
+  return { metadataBase: new URL(SITE_URL), applicationName: d.meta.brand, ...pageMeta(lang, "/", { title: d.meta.title, description: d.meta.description }) };
 }
+
 
 export default async function RootLayout({ children }: LayoutProps<"/[lang]">) {
   const lang = await getLocale();

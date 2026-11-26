@@ -1,3 +1,4 @@
+import { JsonLd, itemListLd, pageMeta } from "@/lib/seo";
 import Link from "next/link";
 import { fromPrice, liveProducts, num } from "@/lib/catalog";
 import { getLocalizedCatalog } from "@/lib/catalog-store";
@@ -5,8 +6,8 @@ import { ProductCard } from "@/components/product-card";
 import { getI18n } from "@/i18n/server";
 
 export async function generateMetadata() {
-  const { d } = await getI18n();
-  return { title: `${d.products.title} — ${d.meta.titleSuffix}`, description: d.products.metaDesc };
+  const { lang, d } = await getI18n();
+  return pageMeta(lang, "/products", { title: `${d.products.title} — ${d.meta.titleSuffix}`, description: d.products.metaDesc });
 }
 
 export default async function Products() {
@@ -15,6 +16,7 @@ export default async function Products() {
   const products = liveProducts(cat);
   return (
     <div className="space-y-12">
+      <JsonLd data={itemListLd(products, lang)} />
       <header className="space-y-2">
         <h1 className="text-3xl font-bold md:text-4xl">{d.products.title}</h1>
         <p className="text-muted-foreground">{f(d.products.summary, { n: num(cat, products.length), vatNote: d.vat.included })}</p>

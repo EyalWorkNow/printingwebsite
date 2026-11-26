@@ -1,3 +1,5 @@
+import { JsonLd, breadcrumbLd, pageMeta, productLd } from "@/lib/seo";
+import { localePath } from "@/i18n/config";
 import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -15,7 +17,7 @@ export async function generateMetadata({ params }: PageProps<"/[lang]/p/[slug]">
   const { lang, d, f } = await getI18n();
   const cat = await getLocalizedCatalog(lang);
   const p = findProduct(cat, slug);
-  return p ? { title: `${p.name} — ${d.meta.titleSuffix}`, description: f(d.product.metaDesc, { desc: p.desc, price: money(cat)(fromPrice(cat, p)), vatShort: d.vat.short }) } : {};
+  return p ? pageMeta(lang, `/p/${p.id}`, { title: `${p.name} — ${d.meta.titleSuffix}`, description: f(d.product.metaDesc, { desc: p.desc, price: money(cat)(fromPrice(cat, p)), vatShort: d.vat.short }), image: p.image }) : {};
 }
 
 // Suspense: params are URL data — keeps client navigations instant (shell renders while the slug resolves)
@@ -33,6 +35,8 @@ async function Body({ params }: { params: PageProps<"/[lang]/p/[slug]">["params"
   const more = liveProducts(cat).filter((x) => x.category === p.category && x.id !== p.id).slice(0, 3);
   return (
     <div className="space-y-10">
+      <JsonLd data={productLd(cat, p, lang, c)} />
+      <JsonLd data={breadcrumbLd([[d.nav.home, localePath(lang, "/")], [c.name, localePath(lang, `/c/${c.id}`)], [p.name, localePath(lang, `/p/${p.id}`)]])} />
       <nav aria-label={d.nav.breadcrumbs} className="text-sm text-muted-foreground">
         <Link href={href("/")} className="inline-block py-1.5 hover:text-foreground">{d.nav.home}</Link> / <Link href={href(`/c/${c.id}`)} className="inline-block py-1.5 hover:text-foreground">{c.name}</Link> / <span className="text-foreground/80">{p.name}</span>
       </nav>
